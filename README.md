@@ -45,12 +45,12 @@ A Discord bot that monitors the status and operational state of specified websit
    git clone https://github.com/kioskun/Discord-Website-Uptime-Bot.git
    cd DiscordWebsiteMonitor
    
-3. Create a virtual environment:
+2. Create a virtual environment:
    ```bash
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
   
-5. Install dependencies:
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
 
