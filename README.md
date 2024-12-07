@@ -52,7 +52,7 @@ A Discord bot that monitors the status and operational state of specified websit
 4.Navigate to the desired bot folder (e.g., DiscordBot1) and run the bot:
 
    -cd DiscordBot1
-   -python3 status_bot.py
+   -python3 DiscordWebsiteMonitor.py
 
 
 ## License
