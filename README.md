@@ -66,7 +66,7 @@ A Discord bot that monitors the status and operational state of specified websit
    - Include clear instructions in README.md.
      
 ##Contributing
-Feel free to fork the repository and submit pull requests!
+   Feel free to fork the repository and submit pull requests!
 
 ## License
 This project is licensed under a **Custom Open Source License** based on the MIT License. See the [LICENSE](./LICENSE) file for details.
