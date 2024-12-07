@@ -1,0 +1,26 @@
+# Python-related files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+
+# Environment files
+.env
+
+# Log files
+*.log
+
+# JSON files containing sensitive or runtime data
+*.json
+
+# Docker files (if not needed in the repository)
+.dockerignore
+
+# System-specific files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
