@@ -20,7 +20,7 @@ A Discord bot that monitors the status and operational state of specified websit
 ---
 
 ## Configuration
-   - Discord Bot Token: Replace TOKEN in the status_bot.py files.
+   - Discord Bot Token: Replace TOKEN in the DiscordWebsiteMonitor.py files.
    - Channel ID: Replace CHANNEL_ID with the ID of your Discord channel.
    - Website URL: Replace website_url with the URL to monitor.
    - Expected Content: Replace EXPECTED_CONTENT with a keyword to verify operational status.
