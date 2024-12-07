@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  discord_bot1:
+    build:
+      context: .
+    container_name: discord_bot
+    volumes:
+      - ./DiscordBot:/app
+    working_dir: /app
+    command: python3 Website Status Checker.py
+    restart: unless-stopped
