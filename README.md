@@ -38,6 +38,7 @@ A Discord bot that monitors the status and operational state of specified websit
    ```bash
    docker ps
 
+
 ## Running Locally
 
 1. Clone the repository:
@@ -59,6 +60,13 @@ A Discord bot that monitors the status and operational state of specified websit
    cd DiscordBot1
    python3 DiscordWebsiteMonitor.py
    ```
+##Instructions for Users
+   - If using Docker, ensure docker-compose.yml is in the root.
+   - If running locally, ensure Python and the required dependencies are installed.
+   - Include clear instructions in README.md.
+     
+##Contributing
+Feel free to fork the repository and submit pull requests!
 
 ## License
 This project is licensed under a **Custom Open Source License** based on the MIT License. See the [LICENSE](./LICENSE) file for details.
