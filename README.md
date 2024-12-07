@@ -10,7 +10,7 @@ A Discord bot to monitor website status and operational state. It periodically c
 
 ## Setup Instructions
 1. Clone this repository.
-2. Edit the `status_bot.py` script to add your:
+2. Edit the `Website Status Checker.py` script to add your:
    - Discord bot token.
    - Channel ID.
    - Website URL.
