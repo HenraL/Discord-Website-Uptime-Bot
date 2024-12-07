@@ -50,7 +50,6 @@ A Discord bot that monitors the status and operational state of specified websit
    -pip install -r requirements.txt
 
 4.Navigate to the desired bot folder (e.g., DiscordBot1) and run the bot:
-
    -cd DiscordBot1
    -python3 DiscordWebsiteMonitor.py
 
