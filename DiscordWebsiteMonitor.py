@@ -1,9 +1,3 @@
-
----
-
-### **Updated Code**
-
-```python
 import sys
 import json  # Ensure this is included
 import discord
