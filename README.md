@@ -20,10 +20,10 @@ A Discord bot that monitors the status and operational state of specified websit
 ---
 
 ## Configuration
-   -Discord Bot Token: Replace TOKEN in the status_bot.py files.
-   -Channel ID: Replace CHANNEL_ID with the ID of your Discord channel.
-   -Website URL: Replace website_url with the URL to monitor.
-   -Expected Content: Replace EXPECTED_CONTENT with a keyword to verify operational status.
+   - Discord Bot Token: Replace TOKEN in the status_bot.py files.
+   - Channel ID: Replace CHANNEL_ID with the ID of your Discord channel.
+   - Website URL: Replace website_url with the URL to monitor.
+   - Expected Content: Replace EXPECTED_CONTENT with a keyword to verify operational status.
 
 ## Running with Docker
 
@@ -32,26 +32,26 @@ A Discord bot that monitors the status and operational state of specified websit
    git clone https://github.com/kioskun/Discord-Website-Uptime-Bot.git
    cd DiscordWebsiteMonitor
 2. Build and run the containers:
-   docker-compose up -d
+   - docker-compose up -d
 3. Verify the containers are running:
-   docker ps
+   - docker ps
 
 ## Running Locally
 
 1. Clone the repository:
-   -git clone https://github.com/your-repository-url.git
-   -cd DiscordWebsiteMonitor
+   - git clone https://github.com/your-repository-url.git
+   - cd DiscordWebsiteMonitor
    
 2. Create a virtual environment:
-   -python3 -m venv venv
-   -source venv/bin/activate  # On Windows: venv\Scripts\activate
+   - python3 -m venv venv
+   - source venv/bin/activate  # On Windows: venv\Scripts\activate
   
 3. Install dependencies:
-   -pip install -r requirements.txt
+   - pip install -r requirements.txt
 
 4.Navigate to the desired bot folder (e.g., DiscordBot1) and run the bot:
-   -cd DiscordBot1
-   -python3 DiscordWebsiteMonitor.py
+   - cd DiscordBot1
+   - python3 DiscordWebsiteMonitor.py
 
 
 ## License
