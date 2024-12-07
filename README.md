@@ -14,7 +14,7 @@ A Discord bot that monitors the status and operational state of specified websit
 
 - Python 3.9+
 - Docker (for containerized deployment)
-- Access to a Discord bot token
+- Access to a Discord bot token through the Discord Developer Portal (There's tutorials online)
 - Channel ID where the bot will post updates
 
 ---
