@@ -60,12 +60,12 @@ A Discord bot that monitors the status and operational state of specified websit
    cd DiscordBot1
    python3 DiscordWebsiteMonitor.py
    ```
-##Instructions for Users
+## Instructions for Users
    - If using Docker, ensure docker-compose.yml is in the root.
    - If running locally, ensure Python and the required dependencies are installed.
    - Include clear instructions in README.md.
      
-##Contributing
+## Contributing
    Feel free to fork the repository and submit pull requests!
 
 ## License
