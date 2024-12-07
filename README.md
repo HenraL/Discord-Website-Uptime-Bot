@@ -39,7 +39,7 @@ A Discord bot that monitors the status and operational state of specified websit
 ## Running Locally
 
 1. Clone the repository:
-   - git clone https://github.com/your-repository-url.git
+   - git clone https://github.com/kioskun/Discord-Website-Uptime-Bot.git
    - cd DiscordWebsiteMonitor
    
 2. Create a virtual environment:
