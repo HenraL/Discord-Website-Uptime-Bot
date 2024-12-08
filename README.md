@@ -37,8 +37,7 @@ A Discord bot that monitors the status and operational state of specified websit
 4. Verify the containers are running:
    ```bash
    docker ps
-
-
+   
 ## Running Locally
 
 1. Clone the repository:
