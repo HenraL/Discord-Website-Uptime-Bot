@@ -1,2 +1,2 @@
-discord.py
-requests
+# This is a passthrough file so that the program still works.
+-r ./DiscordBot/requirements.txt

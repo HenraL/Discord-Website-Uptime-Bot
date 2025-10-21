@@ -1,9 +1,10 @@
-version: "3.8"
+name: DiscordStatusBot
 
 services:
   discord_bot1:
     build:
       context: .
+      dockerfile: Dockerfile
     container_name: discord_bot
     volumes:
       - ./DiscordBot:/app
