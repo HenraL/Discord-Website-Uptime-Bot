@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: discord_bot
+    env_file:
+      - .env
     volumes:
       - ./DiscordBot:/app
     working_dir: /app
