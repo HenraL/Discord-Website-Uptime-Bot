@@ -3,8 +3,10 @@ File in charge of containing the interfacing between an sql library and the prog
 This contains functions that simplify the process of interacting with databases as well as check for injection attempts.
 """
 
-from typing import Optional
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
+from typing import Optional, Callable, Awaitable, Union, List, Dict, Tuple, Any
+
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 from .sql_time_manipulation import SQLTimeManipulation
 from .sql_connections import SQLManageConnections
@@ -31,6 +33,9 @@ class SQL:
             bound after initialisation.
     """
 
+    # Initialise the logger globally in the class.
+    disp: Disp = initialise_logger(__qualname__, False)
+
     def __init__(self, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False):
         """
         Create a lightweight SQL facade instance.
@@ -55,6 +60,8 @@ class SQL:
             For sqlite usage, ``port``, ``username`` and ``password`` are
             typically unused; they are present for backwards compatibility.
         """
+        async def _uninitialized(*args, **kwargs):
+            raise RuntimeError("SQLQueryBoilerplates method not initialized")
         self.debug: bool = debug
         self.success: int = success
         self.error: int = error
@@ -69,13 +76,7 @@ class SQL:
         self.sql_time_manipulation: Optional[SQLTimeManipulation] = None
         self.sql_query_boilerplates: Optional[SQLQueryBoilerplates] = None
         # --------------------------- logger section ---------------------------
-        self.disp: Optional[Disp] = Disp(
-            TOML_CONF,
-            SAVE_TO_FILE,
-            FILE_NAME,
-            debug=self.debug,
-            logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
         # ------------- The class in charge of the sql connection  -------------
         self.sql_manage_connections: Optional[SQLManageConnections] = SQLManageConnections(
             url=self.url,
@@ -104,16 +105,71 @@ class SQL:
         # connection pool is initialised.
         self.sql_query_boilerplates = None
         # ------------------------- Convenience rebinds ------------------------
-        self.get_table_column_names = None
-        self.get_table_names = None
-        self.describe_table = None
-        self.insert_data_into_table = None
-        self.get_data_from_table = None
-        self.get_table_size = None
-        self.update_data_in_table = None
-        self.insert_or_update_data_into_table = None
-        self.remove_data_from_table = None
-        self.drop_data_from_table = None
+        self.create_table: Callable[
+            [str, List[Tuple[str, str]]],
+            Awaitable[int]
+        ]
+        self.get_table_column_names: Callable[
+            [str],
+            Awaitable[Union[List[str], int]]
+        ]
+        self.get_table_names: Callable[
+            [],
+            Awaitable[Union[int, List[str]]]
+        ]
+        self.describe_table: Callable[
+            [str],
+            Awaitable[Union[int, List[Any]]]
+        ]
+        self.insert_data_into_table: Callable[
+            [str, Union[List[List[str]], List[str]], Union[List[str], None]],
+            Awaitable[int]
+        ]
+        self.get_data_from_table: Callable[
+            [str, Union[str, List[str]], Union[str, List[str]], bool],
+            Awaitable[Union[int, List[Dict[str, Any]]]]
+        ]
+        self.get_table_size: Callable[
+            [str, Union[str, List[str]], Union[str, List[str]]],
+            Awaitable[int]
+        ]
+        self.update_data_in_table: Callable[
+            [str, List[str], Union[List[str], str, None], Union[str, List[str]]],
+            Awaitable[int]
+        ]
+        self.insert_or_update_data_into_table: Callable[
+            [str, Union[List[List[str]], List[str]], Union[List[str], None]],
+            Awaitable[int]
+        ]
+        self.remove_data_from_table: Callable[
+            [str, Union[str, List[str]]],
+            Awaitable[int]
+        ]
+        self.drop_data_from_table: Callable[
+            [str],
+            Awaitable[int]
+        ]
+        self.drop_table: Callable[
+            [str],
+            Awaitable[int]
+        ]
+        self.remove_table: Callable[
+            [str],
+            Awaitable[int]
+        ]
+        self.create_table = _uninitialized
+        self.get_table_column_names = _uninitialized
+        self.get_table_names = _uninitialized
+        self.describe_table = _uninitialized
+        self.insert_data_into_table = _uninitialized
+        self.get_data_from_table = _uninitialized
+        self.get_table_size = _uninitialized
+        self.update_data_in_table = _uninitialized
+        self.insert_or_update_data_into_table = _uninitialized
+        self.remove_data_from_table = _uninitialized
+        self.drop_data_from_table = _uninitialized
+        self.remove_table = _uninitialized
+        self.drop_table = _uninitialized
 
     def __del__(self) -> None:
         """
@@ -163,8 +219,17 @@ class SQL:
             sql = await SQL.create('db.sqlite', 0, '', '', 'db.sqlite')
             await sql.get_data_from_table('my_table')
         """
-        self = cls(url, port, username, password, db_name,
-                   success=success, error=error, debug=debug)
+
+        self = cls(
+            url,
+            port,
+            username,
+            password,
+            db_name,
+            success=success,
+            error=error,
+            debug=debug
+        )
         # Initialise the async connection pool
         # static checkers see `sql_manage_connections` as Optional; assert
         # it's available to narrow the type for the following calls.
@@ -180,6 +245,7 @@ class SQL:
             error=self.error, debug=self.debug
         )
         # Bind convenience methods
+        self.create_table = self.sql_query_boilerplates.create_table
         self.get_table_column_names = self.sql_query_boilerplates.get_table_column_names
         self.get_table_names = self.sql_query_boilerplates.get_table_names
         self.describe_table = self.sql_query_boilerplates.describe_table
@@ -190,4 +256,20 @@ class SQL:
         self.insert_or_update_data_into_table = self.sql_query_boilerplates.insert_or_update_data_into_table
         self.remove_data_from_table = self.sql_query_boilerplates.remove_data_from_table
         self.drop_data_from_table = self.sql_query_boilerplates.remove_data_from_table
+        self.remove_table = self.sql_query_boilerplates.drop_table
+        self.drop_table = self.sql_query_boilerplates.drop_table
         return self
+
+    async def close(self) -> None:
+        """Cleanly close async resources like the connection pool."""
+        if self.sql_manage_connections is not None:
+            try:
+                await self.sql_manage_connections.destroy_pool()
+            except Exception as e:
+                if self.disp:
+                    self.disp.log_error(
+                        f"Error while closing connection pool: {e}")
+        # Clean up all references
+        self.sql_manage_connections = None
+        self.sql_query_boilerplates = None
+        self.sql_time_manipulation = None

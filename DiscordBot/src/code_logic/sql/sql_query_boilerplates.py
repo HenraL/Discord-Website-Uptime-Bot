@@ -2,11 +2,12 @@
     File in charge of storing the functions that will interract directly with the database.
 """
 
-from typing import List, Dict, Union, Any, cast
+from typing import List, Dict, Union, Any, Tuple, cast
 
 import sqlite3
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
 
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 from . import sql_constants as SCONST
 from .sql_injection import SQLInjection
@@ -25,6 +26,8 @@ class SQLQueryBoilerplates:
     for operations that modify data.
     """
 
+    disp: Disp = initialise_logger(__qualname__, False)
+
     def __init__(self, sql_pool: SQLManageConnections, success: int = 0, error: int = 84, debug: bool = False) -> None:
         """
         Initialize the query helper.
@@ -42,13 +45,7 @@ class SQLQueryBoilerplates:
         self.debug: bool = debug
         self.success: int = success
         # --------------------------- logger section ---------------------------
-        self.disp: Disp = Disp(
-            TOML_CONF,
-            SAVE_TO_FILE,
-            FILE_NAME,
-            debug=self.debug,
-            logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
         # ---------------------- The anty injection class ----------------------
         self.sql_injection: SQLInjection = SQLInjection(
             self.error,
@@ -177,6 +174,148 @@ class SQLQueryBoilerplates:
             self.disp.log_critical(msg, title)
             raise RuntimeError(msg) from e
 
+    async def create_table(self, table: str, columns: List[Tuple[str, str]]) -> int:
+        """
+        Create a new table in the SQLite database.
+
+        Args:
+            table (str): Name of the new table.
+            columns (List[Tuple[str, str]]): List of (column_name, column_type) pairs.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to create a basic ``users`` table:
+
+            .. code-block:: python
+
+                # Define the table name and column definitions
+                table_name = "users"
+                columns = [
+                    ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                    ("username", "TEXT NOT NULL UNIQUE"),
+                    ("email", "TEXT NOT NULL"),
+                    ("created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+                ]
+
+                # Create the table asynchronously
+                result = await self.create_table(table_name, columns)
+
+                # Check if the operation succeeded
+                if result == self.success:
+                    print(f"Table '{table_name}' created successfully.")
+                else:
+                    print(f"Failed to create table '{table_name}'.")
+
+        Notes:
+            - This method automatically checks for SQL injection attempts using :class:`SQLInjection` before executing the query.
+            - Single quotes in table or column names are escaped defensively.
+            - The query uses ``CREATE TABLE IF NOT EXISTS`` to avoid errors if the table already exists.
+        """
+        title = "create_table"
+        self.disp.log_debug(f"Creating table '{table}'", title)
+
+        # --- SQL injection protection ---
+        # Check both table name and column data
+        if self.sql_injection.check_if_injections_in_strings([table]) or self.sql_injection.check_if_injections_in_strings([col for col_pair in columns for col in col_pair]):
+            self.disp.log_error(
+                "Injection detected in table or column definition.", title)
+            return self.error
+
+        try:
+            # Escape single quotes in table/column names defensively
+            table_safe = table.replace("'", "''")
+            columns_def = ", ".join(
+                f"'{name.replace("'", "''")}' {col_type}" for name, col_type in columns
+            )
+
+            query = f"CREATE TABLE IF NOT EXISTS '{table_safe}' ({columns_def});"
+            self.disp.log_debug(f"Executing SQL: {query}", title)
+
+            result = await self.sql_pool.run_and_commit(query=query)
+            if isinstance(result, int) and result == self.error:
+                self.disp.log_error(f"Failed to create table '{table}'", title)
+                return self.error
+
+            self.disp.log_info(f"Table '{table}' created successfully.", title)
+            return self.success
+
+        except sqlite3.OperationalError as oe:
+            msg = f"OperationalError while creating table '{table}': {oe}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from oe
+        except sqlite3.Error as e:
+            msg = f"SQLite Error while creating table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+        except Exception as e:
+            msg = f"Unexpected error while creating table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+
+    async def drop_table(self, table: str) -> int:
+        """
+        Drop (delete) a table from the SQLite database.
+
+        Args:
+            table (str): Name of the table to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to drop the ``users`` table:
+
+            .. code-block:: python
+
+                table_name = "users"
+                result = await self.drop_table(table_name)
+
+                if result == self.success:
+                    print(f"Table '{table_name}' dropped successfully.")
+                else:
+                    print(f"Failed to drop table '{table_name}'.")
+
+        Notes:
+            - The method performs SQL injection detection on the table name.
+            - If the table does not exist, no error is raised (uses ``DROP TABLE IF EXISTS`` internally).
+        """
+        title = "drop_table"
+        self.disp.log_debug(f"Dropping table '{table}'", title)
+
+        # --- SQL injection protection ---
+        if self.sql_injection.check_if_injections_in_strings([table]):
+            self.disp.log_error("Injection detected in table name.", title)
+            return self.error
+
+        try:
+            # Escape quotes for safety
+            table_safe = table.replace("'", "''")
+            query = f"DROP TABLE IF EXISTS '{table_safe}';"
+            self.disp.log_debug(f"Executing SQL: {query}", title)
+
+            result = await self.sql_pool.run_and_commit(query=query)
+            if isinstance(result, int) and result == self.error:
+                self.disp.log_error(f"Failed to drop table '{table}'", title)
+                return self.error
+
+            self.disp.log_info(f"Table '{table}' dropped successfully.", title)
+            return self.success
+
+        except sqlite3.OperationalError as oe:
+            msg = f"OperationalError while dropping table '{table}': {oe}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from oe
+        except sqlite3.Error as e:
+            msg = f"SQLite Error while dropping table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+        except Exception as e:
+            msg = f"Unexpected error while dropping table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+
     async def insert_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], column: Union[List[str], None] = None) -> int:
         """
         Insert one or multiple rows into ``table``.
@@ -203,7 +342,8 @@ class SQLQueryBoilerplates:
             column = cast(List[str], columns_raw)
         # At this point column should be a List of strings; cast for the type checker
         column = cast(List[str], column)
-        _tmp_cols: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(column)
+        _tmp_cols: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(
+            column)
         column = cast(List[str], _tmp_cols)
         column_str = ", ".join(column)
         column_length = len(column)
@@ -366,7 +506,8 @@ class SQLQueryBoilerplates:
 
         # Ensure column is a List[str] for subsequent operations
         column = cast(List[str], column)
-        _tmp_cols2: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(column)
+        _tmp_cols2: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(
+            column)
         column = cast(List[str], _tmp_cols2)
 
         if isinstance(column, str) and isinstance(data, str):

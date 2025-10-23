@@ -11,7 +11,8 @@ import base64
 import binascii
 from typing import Union, List, Any, Callable
 
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 
 class SQLInjection:
@@ -28,19 +29,15 @@ class SQLInjection:
         debug (bool): When True, additional debug output is emitted.
     """
 
+    disp: Disp = initialise_logger(__qualname__, False)
+
     def __init__(self, error: int = 84, success: int = 0, debug: bool = False) -> None:
         # ---------------------------- Status codes ----------------------------
         self.debug: bool = debug
         self.error: int = error
         self.success: int = success
         # ---------------------------- Logging data ----------------------------
-        self.disp: Disp = Disp(
-            TOML_CONF,
-            SAVE_TO_FILE,
-            FILE_NAME,
-            self.debug,
-            logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
         # ------------------ Injection checking related data  ------------------
         self.injection_err: int = (-1)
         self.injection_message: str = "Injection attempt detected"

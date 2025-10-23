@@ -3,8 +3,8 @@
 # File description:
 # __init__.py
 
-from .sql_injection import SQLInjection
 from .sql_manager import SQL
+from .sql_injection import SQLInjection
 
 __all__ = [
     "SQLInjection",

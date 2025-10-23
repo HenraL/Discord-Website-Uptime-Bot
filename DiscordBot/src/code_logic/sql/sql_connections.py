@@ -8,10 +8,14 @@
 
 from typing import Union, Any, Optional
 
+from pathlib import Path
+
 import sqlite3
 import asyncio
 import aiosqlite
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
+
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 from . import sql_constants as SCONST
 
@@ -37,6 +41,9 @@ class SQLManageConnections:
         _lock (asyncio.Lock): Lock used to serialize connection/cursor use.
     """
 
+    # Initialise the logger globally in the class.
+    disp: Disp = initialise_logger(__qualname__, False)
+
     def __init__(
         self,
         url: str,
@@ -55,11 +62,9 @@ class SQLManageConnections:
         self.port: int = port
         self.username: str = username
         self.password: str = password
-        self.db_name: str = db_name
+        self.db_name: str = str(Path(self.url) / db_name)
         # --------------------------- logger section ---------------------------
-        self.disp: Disp = Disp(
-            TOML_CONF, SAVE_TO_FILE, FILE_NAME, debug=self.debug, logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
 
         # The aiosqlite connection (async object)
         self.connection: Optional[aiosqlite.Connection] = None

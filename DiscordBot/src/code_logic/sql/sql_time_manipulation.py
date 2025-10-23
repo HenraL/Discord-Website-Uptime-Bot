@@ -4,7 +4,8 @@
 
 from datetime import datetime
 
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 from . import sql_constants as SCONST
 
@@ -17,6 +18,8 @@ class SQLTimeManipulation:
     timestamps from the database.
     """
 
+    disp: Disp = initialise_logger(__qualname__, False)
+
     def __init__(self, debug: bool = False) -> None:
         """Create the time helper.
 
@@ -28,13 +31,7 @@ class SQLTimeManipulation:
         self.date_only: str = SCONST.DATE_ONLY
         self.date_and_time: str = SCONST.DATE_AND_TIME
         # --------------------------- logger section ---------------------------
-        self.disp: Disp = Disp(
-            TOML_CONF,
-            SAVE_TO_FILE,
-            FILE_NAME,
-            debug=self.debug,
-            logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
 
     def datetime_to_string(self, datetime_instance: datetime, date_only: bool = False, sql_mode: bool = False) -> str:
         """Format a :class:`datetime` to the project's string representation.

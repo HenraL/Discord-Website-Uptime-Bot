@@ -4,7 +4,8 @@
 
 from typing import List, Dict, Any, Union
 
-from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
+from display_tty import Disp
+from ..program_globals.helpers import initialise_logger
 
 from . import sql_constants as SCONST
 from .sql_time_manipulation import SQLTimeManipulation
@@ -16,6 +17,8 @@ class SQLSanitiseFunctions:
     This class contains small helpers used by the SQL boilerplate layer to
     escape column names, protect values, and build safe SQL fragments.
     """
+
+    disp: Disp = initialise_logger(__qualname__, False)
 
     def __init__(self, success: int = 0, error: int = 84, debug: bool = False) -> None:
         """Create a sanitiser instance.
@@ -29,13 +32,7 @@ class SQLSanitiseFunctions:
         self.debug: bool = debug
         self.success: int = success
         # --------------------------- logger section ---------------------------
-        self.disp: Disp = Disp(
-            TOML_CONF,
-            SAVE_TO_FILE,
-            FILE_NAME,
-            debug=self.debug,
-            logger=self.__class__.__name__
-        )
+        self.disp.update_disp_debug(self.debug)
         # ----------------- Database risky keyword sanitising  -----------------
         self.risky_keywords: List[str] = SCONST.RISKY_KEYWORDS
         self.keyword_logic_gates: List[str] = SCONST.KEYWORD_LOGIC_GATES
