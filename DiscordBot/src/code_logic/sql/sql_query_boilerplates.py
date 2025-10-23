@@ -105,9 +105,11 @@ class SQLQueryBoilerplates:
                 title
             )
             return self.error
+        self.disp.log_debug(f"response = {resp}")
         data = []
         for i in resp:
             data.append(i[0])
+        self.disp.log_debug(f"response (cleaned) = {data}")
         self.disp.log_debug("Tables fetched", title)
         return data
 
@@ -218,9 +220,10 @@ class SQLQueryBoilerplates:
 
         # --- SQL injection protection ---
         # Check both table name and column data
-        if self.sql_injection.check_if_injections_in_strings([table]) or self.sql_injection.check_if_injections_in_strings([col for col_pair in columns for col in col_pair]):
+        if self.sql_injection.check_if_injections_in_strings([table]):
             self.disp.log_error(
-                "Injection detected in table or column definition.", title)
+                "Injection detected in table name.", title
+            )
             return self.error
 
         try:

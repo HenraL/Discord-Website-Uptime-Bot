@@ -31,8 +31,7 @@ class SQLManageConnections:
     Behaviour / contract:
     - Call :meth:`initialise_pool` once at startup to open the sqlite file.
     - Use :meth:`get_connection` / :meth:`get_cursor` to obtain resources.
-    - Prefer the convenience methods :meth:`run_and_fetch_all` and
-      :meth:`run_editing_command` for simple queries.
+    - Prefer the convenience methods :meth:`run_and_fetch_all` and :meth:`run_editing_command` for simple queries.
     - Public I/O methods are asynchronous and must be awaited.
 
     Attributes:
@@ -146,8 +145,10 @@ class SQLManageConnections:
     def get_connection(self) -> aiosqlite.Connection:
         """Return the active :class:`aiosqlite.Connection`.
 
-        This does not open a connection; it only returns the connection
-        previously created by :meth:`initialise_pool`.
+        NOTE: This synchronous helper only returns the stored connection or
+        raises if it is not initialised. Prefer using
+        :meth:`get_connection_async` in async code which will create the
+        connection lazily if missing.
 
         Returns:
             aiosqlite.Connection: The active connection object.
@@ -159,6 +160,35 @@ class SQLManageConnections:
         if self.connection is None:
             raise RuntimeError("Connection is not initialized.")
         self.disp.log_debug("Getting an aiosqlite connection", title)
+        return self.connection
+
+    async def get_connection_async(self) -> aiosqlite.Connection:
+        """Async get-or-create connection helper.
+
+        If a connection is already stored, it is returned. Otherwise this
+        method will call :meth:`initialise_pool` to create and return a
+        connection. This is safe to call from async code and prevents
+        changing the public synchronous API.
+
+        Returns:
+            aiosqlite.Connection: Active connection instance.
+
+        Raises:
+            RuntimeError: If initialisation failed.
+        """
+        title = "get_connection_async"
+        # Fast path: existing connection
+        if self.connection is not None:
+            self.disp.log_debug("Returning existing aiosqlite connection", title)
+            return self.connection
+
+        # Otherwise initialise a new connection
+        self.disp.log_debug("No connection present, initialising pool.", title)
+        result = await self.initialise_pool()
+        if result != self.success or self.connection is None:
+            msg = "Failed to initialise a new aiosqlite connection."
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg)
         return self.connection
 
     async def get_cursor(self, connection: aiosqlite.Connection) -> aiosqlite.Cursor:
@@ -312,8 +342,10 @@ class SQLManageConnections:
         self.disp.log_debug("Running and committing sql query.", title)
         if cursor is None:
             self.disp.log_debug("No cursor found, generating one.", title)
-            connection = self.get_connection()
-            if connection is None:
+            # Use async helper to get or create the connection lazily
+            try:
+                connection = await self.get_connection_async()
+            except RuntimeError:
                 self.disp.log_critical(SCONST.CONNECTION_FAILED, title)
                 return self.error
             internal_cursor = await self.get_cursor(connection)
@@ -420,8 +452,10 @@ class SQLManageConnections:
         """
         title = "run_and_fetchall"
         if cursor is None:
-            connection = self.get_connection()
-            if connection is None:
+            # Use async helper to get or create the connection lazily
+            try:
+                connection = await self.get_connection_async()
+            except RuntimeError:
                 self.disp.log_critical(SCONST.CONNECTION_FAILED, title)
                 return self.error
             internal_cursor = await self.get_cursor(connection)
