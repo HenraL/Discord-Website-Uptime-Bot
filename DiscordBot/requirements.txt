@@ -2,3 +2,4 @@ discord.py==2.6.4
 requests==2.32.5
 display_tty==1.1.12
 aiosqlite==0.21.0
+ask-question==1.2.12
