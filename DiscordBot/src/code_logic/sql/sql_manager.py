@@ -5,7 +5,9 @@ the database. The module exposes a class providing convenience async
 methods for common operations (create/drop tables, queries, inserts,
 etc.) while performing defensive sanitisation.
 """
-from typing import Optional, Callable, Awaitable, Union, List, Dict, Tuple, Any, overload
+
+from typing import Optional, Union, List, Dict, Tuple, Literal, Any, overload
+
 
 from display_tty import Disp
 from ..program_globals.helpers import initialise_logger
@@ -23,8 +25,23 @@ class SQL:
     fully-initialised instance ready for async usage.
     """
 
-    # Initialise the logger globally in the class.
+    # --------------------------------------------------------------------------
+    # STATIC CLASS VALUES
+    # --------------------------------------------------------------------------
+
+    # -------------- Initialise the logger globally in the class. --------------
     disp: Disp = initialise_logger(__qualname__, False)
+
+    # ------------------ Runtime error for undefined elements ------------------
+    _runtime_error_string: str = "SQLQueryBoilerplates method not initialized"
+
+    # Docstring wrapper notice
+    _wrapper_notice_begin: str = "(Wrapper) Delegates to SQLQueryBoilerplates."
+    _wrapper_notice_end: str = "\n\nOriginal docstring:\n"
+
+    # --------------------------------------------------------------------------
+    # CONSTRUCTOR & DESTRUCTOR
+    # --------------------------------------------------------------------------
 
     def __init__(self, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False):
         """Create a lightweight SQL facade instance.
@@ -33,13 +50,7 @@ class SQL:
         require an active async connection. Use :py:meth:`create` to
         complete async initialization.
         """
-        async def _uninitialized(*args, **kwargs):
-            """Placeholder async callable used before the instance is fully initialised.
-
-            Raises a RuntimeError if called; bound to instance methods until
-            the async factory completes initialisation.
-            """
-            raise RuntimeError("SQLQueryBoilerplates method not initialized")
+        # -------------------------- Inherited values --------------------------
         self.debug: bool = debug
         self.success: int = success
         self.error: int = error
@@ -82,119 +93,6 @@ class SQL:
         # sql_query_boilerplates will be created by the async factory once the
         # connection pool is initialised.
         self.sql_query_boilerplates = None
-        # ------------------------- Convenience rebinds ------------------------
-        self.create_table: Callable[
-            [str, List[Tuple[str, str]]],
-            Awaitable[int]
-        ]
-        self.create_trigger: Callable[
-            [str, str],
-            Awaitable[int]
-        ]
-        self.get_table_column_names: Callable[
-            [str],
-            Awaitable[Union[List[str], int]]
-        ]
-        self.get_table_names: Callable[
-            [],
-            Awaitable[Union[int, List[str]]]
-        ]
-        self.get_triggers: Callable[
-            [],
-            Awaitable[Union[int, Dict[str, str]]]
-        ]
-        self.get_trigger: Callable[
-            [str],
-            Awaitable[Union[int, str]]
-        ]
-        self.get_trigger_names: Callable[
-            [],
-            Awaitable[Union[int, List[str]]]
-        ]
-        self.describe_table: Callable[
-            [str],
-            Awaitable[Union[int, List[Any]]]
-        ]
-        self.insert_data_into_table: Callable[
-            [str, Union[List[List[str]], List[str]], Union[List[str], None]],
-            Awaitable[int]
-        ]
-        self.insert_trigger: Callable[
-            [str, str],
-            Awaitable[int]
-        ]
-        self.get_data_from_table: Callable[
-            [str, Union[str, List[str]], Union[str, List[str]], bool],
-            Awaitable[
-                Union[
-                    int,
-                    Union[
-                        List[
-                            Dict[str, Any]
-                        ],
-                        List[
-                            Tuple[str, Any]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-        self.get_table_size: Callable[
-            [str, Union[str, List[str]], Union[str, List[str]]],
-            Awaitable[int]
-        ]
-        self.update_data_in_table: Callable[
-            [str, List[str], Union[List[str], str, None], Union[str, List[str]]],
-            Awaitable[int]
-        ]
-        self.insert_or_update_data_into_table: Callable[
-            [str, Union[List[List[str]], List[str]], Union[List[str], None]],
-            Awaitable[int]
-        ]
-        self.insert_or_update_trigger: Callable[
-            [str, str],
-            Awaitable[int]
-        ]
-        self.remove_data_from_table: Callable[
-            [str, Union[str, List[str]]],
-            Awaitable[int]
-        ]
-        self.drop_data_from_table: Callable[
-            [str],
-            Awaitable[int]
-        ]
-        self.drop_table: Callable[
-            [str],
-            Awaitable[int]
-        ]
-        self.remove_table: Callable[
-            [str],
-            Awaitable[int]
-        ]
-        self.remove_trigger: Callable[[str], Awaitable[int]]
-        self.drop_trigger: Callable[[str], Awaitable[int]]
-
-        self.create_table = _uninitialized
-        self.create_trigger = _uninitialized
-        self.get_table_column_names = _uninitialized
-        self.get_table_names = _uninitialized
-        self.get_trigger = _uninitialized
-        self.get_triggers = _uninitialized
-        self.get_trigger_names = _uninitialized
-        self.describe_table = _uninitialized
-        self.insert_trigger = _uninitialized
-        self.insert_data_into_table = _uninitialized
-        self.get_data_from_table = _uninitialized
-        self.get_table_size = _uninitialized
-        self.update_data_in_table = _uninitialized
-        self.insert_or_update_data_into_table = _uninitialized
-        self.insert_or_update_trigger = _uninitialized
-        self.remove_data_from_table = _uninitialized
-        self.drop_data_from_table = _uninitialized
-        self.remove_table = _uninitialized
-        self.drop_table = _uninitialized
-        self.remove_trigger = _uninitialized
-        self.drop_trigger = _uninitialized
 
     def __del__(self) -> None:
         """Best-effort cleanup invoked when the instance is garbage-collected.
@@ -213,8 +111,478 @@ class SQL:
             del self.sql_query_boilerplates
             self.sql_query_boilerplates = None
 
+    # --------------------------------------------------------------------------
+    # WRAPPER DEFINITIONS
+    # --------------------------------------------------------------------------
+
+    async def create_table(self, table: str, columns: List[Tuple[str, str]]) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.create_table
+
+        Original docstring:
+
+        Create a new table in the SQLite database.
+
+        Args:
+            table (str): Name of the new table.
+            columns (List[Tuple[str, str]]): List of (column_name, column_type) pairs.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to create a basic ``users`` table:
+
+            .. code-block:: python
+
+                # Define the table name and column definitions
+                table_name = "users"
+                columns = [
+                    ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
+                    ("username", "TEXT NOT NULL UNIQUE"),
+                    ("email", "TEXT NOT NULL"),
+                    ("created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+                ]
+
+                # Create the table asynchronously
+                result = await self.create_table(table_name, columns)
+
+                # Check if the operation succeeded
+                if result == self.success:
+                    print(f"Table '{table_name}' created successfully.")
+                else:
+                    print(f"Failed to create table '{table_name}'.")
+
+        Notes:
+            - This method automatically checks for SQL injection attempts using :class:`SQLInjection` before executing the query.
+            - Single quotes in table or column names are escaped defensively.
+            - The query uses ``CREATE TABLE IF NOT EXISTS`` to avoid errors if the table already exists.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.create_table(table, columns)
+
+    async def create_trigger(self, trigger_name: str, trigger_sql: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.insert_trigger
+
+        Original docstring:
+
+        Insert a new SQL trigger into the database.
+
+        Args:
+            trigger_name (str): Name of the trigger to create.
+            trigger_sql (str): SQL command defining the trigger.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.insert_trigger(trigger_name, trigger_sql)
+
+    async def get_table_column_names(self, table_name: str) -> Union[List[str], int]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_table_column_names
+
+        Original docstring:
+
+        Return the list of column names for ``table_name``.
+
+        Args:
+            table_name (str): Name of the table to inspect.
+
+        Returns:
+            Union[List[str], int]: List of column names on success, or
+            ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_table_column_names(table_name)
+
+    async def get_table_names(self) -> Union[int, List[str]]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_table_names
+
+        Original docstring:
+
+        Return a list of non-internal table names in the database.
+
+        Returns:
+            Union[int, List[str]]: List of table names or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_table_names()
+
+    async def get_triggers(self) -> Union[int, Dict[str, str]]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_triggers
+
+        Original docstring:
+
+        Return a dictionary of all triggers and their SQL definitions.
+
+        Returns:
+            Union[int, Dict[str, str]]: Dict of {trigger_name: sql_definition}, or ``self.error``.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_triggers()
+
+    async def get_trigger(self, trigger_name: str) -> Union[int, str]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_trigger
+
+        Original docstring:
+
+        Return a dictionary of all triggers and their SQL definitions.
+
+        Returns:
+            Union[int, Dict[str, str]]: Dict of {trigger_name: sql_definition}, or ``self.error``.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_trigger(trigger_name)
+
+    async def get_trigger_names(self) -> Union[int, List[str]]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_trigger_names
+
+        Original docstring:
+
+        Return a list of non-internal trigger names in the database.
+
+        Returns:
+            Union[int, List[str]]: List of trigger names, or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_trigger_names()
+
+    async def describe_table(self, table: str) -> Union[int, List[Any]]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.describe_table
+
+        Original docstring:
+
+        Fetch the schema description for a table.
+
+        This returns rows similar to SQLite's PRAGMA table_info but is
+        transformed so the first element is the column name (to remain
+        compatible with previous MySQL-style DESCRIBE results).
+
+        Args:
+            table (str): Name of the table to describe.
+
+        Raises:
+            RuntimeError: On critical SQLite errors (re-raised as RuntimeError).
+
+        Returns:
+            Union[int, List[Any]]: Transformed description rows on success,
+            or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.describe_table(table)
+
+    async def insert_trigger(self, trigger_name: str, trigger_sql: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.insert_trigger
+
+        Original docstring:
+
+        Insert a new SQL trigger into the database.
+
+        Args:
+            trigger_name (str): Name of the trigger to create.
+            trigger_sql (str): SQL command defining the trigger.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.insert_trigger(trigger_name, trigger_sql)
+
+    async def insert_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], column: Union[List[str], None] = None) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.insert_data_into_table
+
+        Original docstring:
+
+        Insert one or multiple rows into ``table``.
+
+        Args:
+            table (str): Table name.
+            data (Union[List[List[str]], List[str]]): Row data. Either a
+                single row (List[str]) or a list of rows (List[List[str]]).
+            column (List[str] | None): Optional list of columns to insert into.
+
+        Returns:
+            int: ``self.success`` on success or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.insert_data_into_table(table, data, column)
+
+    @overload
+    async def get_data_from_table(
+        self,
+        table: str,
+        column: Union[str, List[str]],
+        where: Union[str, List[str]] = "",
+        beautify: Literal[True] = True,
+    ) -> Union[int, List[Dict[str, Any]]]: ...
+
+    @overload
+    async def get_data_from_table(
+        self,
+        table: str,
+        column: Union[str, List[str]],
+        where: Union[str, List[str]] = "",
+        beautify: Literal[False] = False,
+    ) -> Union[int, List[Tuple[str, Any]]]: ...
+
+    async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, Union[List[Dict[str, Any]], List[Tuple[str, Any]]]]:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_data_from_table
+
+        Original docstring:
+
+        Query rows from ``table`` and optionally return them in a beautified form.
+
+        Args:
+            table (str): Table name.
+            column (Union[str, List[str]]): Column name(s) or '*' to select.
+            where (Union[str, List[str]], optional): WHERE clause or list of
+                conditions. Defaults to empty string.
+            beautify (bool, optional): If True, convert rows to list of dicts
+                keyed by column names. Defaults to True.
+
+        Returns:
+            Union[int, List[Dict[str, Any]], List[Tuple[str, Any]]]: Beautified list of Dictionaries on success and if beautify is True, otherwise, a list of tuples is beautify is set to False, or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_data_from_table(table, column, where, beautify)
+
+    async def get_table_size(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "") -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.get_table_size
+
+        Original docstring:
+
+        Return the number of rows matching the optional WHERE clause.
+
+        Args:
+            table (str): Table name.
+            column (Union[str, List[str]]): Column to COUNT over (often '*').
+            where (Union[str, List[str]], optional): WHERE clause or list of
+                conditions. Defaults to empty string.
+
+        Returns:
+            int: Number of matching rows, or ``SCONST.GET_TABLE_SIZE_ERROR`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.get_table_size(table, column, where)
+
+    async def update_data_in_table(self, table: str, data: List[str], column: Union[List[str], str, None], where: Union[str, List[str]] = "") -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.update_data_in_table
+
+        Original docstring:
+
+        Update rows in ``table`` matching ``where`` with values from ``data``.
+
+        Args:
+            table (str): Table name.
+            data (List[str]): New values to set.
+            column (List): Column names corresponding to data.
+            where (Union[str, List[str]], optional): WHERE clause or list of
+                conditions. Defaults to empty string.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.update_data_in_table(table, data, column, where)
+
+    async def insert_or_update_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], columns: Union[List[str], None] = None) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.insert_or_update_data_into_table
+
+        Original docstring:
+
+        Insert new rows or update existing rows for ``table``.
+
+        This method determines column names if not provided and delegates
+        to the appropriate INSERT/UPDATE boilerplate.
+
+        Args:
+            table (str): Table name.
+            data (Union[List[List[str]], List[str]]): Data to insert or update.
+            columns (List[str] | None, optional): Column names. Defaults to None.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.insert_or_update_data_into_table(table, data, columns)
+
+    async def insert_or_update_trigger(self, trigger_name: str, trigger_sql: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.insert_or_update_trigger
+
+        Original docstring:
+
+        Insert or update an existing SQL trigger.
+
+        Args:
+            trigger_name (str): Name of the trigger to create or replace.
+            trigger_sql (str): SQL command defining the trigger.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.insert_or_update_trigger(trigger_name, trigger_sql)
+
+    async def remove_data_from_table(self, table: str, where: Union[str, List[str]] = "") -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_data_from_table
+
+        Original docstring:
+
+        Delete rows from ``table`` matching ``where``.
+
+        Args:
+            table (str): Table name to delete rows from.
+            where (Union[str, List[str]], optional): WHERE clause or list of
+                conditions to filter rows. If empty, all rows are deleted.
+
+        Returns:
+            int: ``self.success`` on success or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.remove_data_from_table(table, where)
+
+    async def drop_data_from_table(self, table: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_data_from_table
+
+        Original docstring:
+
+        Delete rows from ``table`` matching ``where``.
+
+        Args:
+            table (str): Table name to delete rows from.
+            where (Union[str, List[str]], optional): WHERE clause or list of
+                conditions to filter rows. If empty, all rows are deleted.
+
+        Returns:
+            int: ``self.success`` on success or ``self.error`` on failure.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        # alias for remove_data_from_table to preserve API consistency
+        return await self.sql_query_boilerplates.remove_data_from_table(table)
+
+    async def remove_table(self, table: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_table
+
+        Original docstring:
+
+        Drop/Remove (delete) a table from the SQLite database.
+
+        Args:
+            table (str): Name of the table to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to drop the ``users`` table:
+
+            .. code-block:: python
+
+                table_name = "users"
+                result = await self.drop_table(table_name)
+
+                if result == self.success:
+                    print(f"Table '{table_name}' dropped successfully.")
+                else:
+                    print(f"Failed to drop table '{table_name}'.")
+
+        Notes:
+            - The method performs SQL injection detection on the table name.
+            - If the table does not exist, no error is raised (uses ``DROP TABLE IF EXISTS`` internally).
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.remove_table(table)
+
+    async def drop_table(self, table: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_table
+
+        Original docstring:
+
+        Drop/Remove (delete) a table from the SQLite database.
+
+        Args:
+            table (str): Name of the table to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to drop the ``users`` table:
+
+            .. code-block:: python
+
+                table_name = "users"
+                result = await self.drop_table(table_name)
+
+                if result == self.success:
+                    print(f"Table '{table_name}' dropped successfully.")
+                else:
+                    print(f"Failed to drop table '{table_name}'.")
+
+        Notes:
+            - The method performs SQL injection detection on the table name.
+            - If the table does not exist, no error is raised (uses ``DROP TABLE IF EXISTS`` internally).
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.remove_table(table)
+
+    async def remove_trigger(self, trigger_name: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_trigger
+
+        Original docstring:
+
+        Drop/Remove an existing SQL trigger if it exists.
+
+        Args:
+            trigger_name (str): Name of the trigger to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.remove_trigger(trigger_name)
+
+    async def drop_trigger(self, trigger_name: str) -> int:
+        """(Wrapper) Delegates to SQLQueryBoilerplates.remove_trigger
+
+        Original docstring:
+
+        Drop/Remove an existing SQL trigger if it exists.
+
+        Args:
+            trigger_name (str): Name of the trigger to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        if self.sql_query_boilerplates is None:
+            raise RuntimeError(self._runtime_error_string)
+        return await self.sql_query_boilerplates.remove_trigger(trigger_name)
+
+    # --------------------------------------------------------------------------
+    # FACTORY + CLEANUP
+    # --------------------------------------------------------------------------
     @classmethod
-    async def create(cls, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False):
+    async def create(cls, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False) -> 'SQL':
         """Async factory to create and initialise an SQL instance.
 
         This factory completes asynchronous initialisation steps that the
@@ -271,28 +639,6 @@ class SQL:
             sql_pool=self.sql_manage_connections, success=self.success,
             error=self.error, debug=self.debug
         )
-        # Bind convenience methods
-        self.create_table = self.sql_query_boilerplates.create_table
-        self.create_trigger = self.sql_query_boilerplates.insert_trigger
-        self.get_table_column_names = self.sql_query_boilerplates.get_table_column_names
-        self.get_table_names = self.sql_query_boilerplates.get_table_names
-        self.get_trigger = self.sql_query_boilerplates.get_trigger
-        self.get_triggers = self.sql_query_boilerplates.get_triggers
-        self.get_trigger_names = self.sql_query_boilerplates.get_trigger_names
-        self.describe_table = self.sql_query_boilerplates.describe_table
-        self.insert_trigger = self.sql_query_boilerplates.insert_trigger
-        self.insert_data_into_table = self.sql_query_boilerplates.insert_data_into_table
-        self.get_data_from_table = self.sql_query_boilerplates.get_data_from_table
-        self.get_table_size = self.sql_query_boilerplates.get_table_size
-        self.update_data_in_table = self.sql_query_boilerplates.update_data_in_table
-        self.insert_or_update_data_into_table = self.sql_query_boilerplates.insert_or_update_data_into_table
-        self.insert_or_update_trigger = self.sql_query_boilerplates.insert_or_update_trigger
-        self.remove_data_from_table = self.sql_query_boilerplates.remove_data_from_table
-        self.drop_data_from_table = self.sql_query_boilerplates.remove_data_from_table
-        self.remove_table = self.sql_query_boilerplates.drop_table
-        self.drop_table = self.sql_query_boilerplates.drop_table
-        self.remove_trigger = self.sql_query_boilerplates.remove_trigger
-        self.drop_trigger = self.sql_query_boilerplates.remove_trigger
         return self
 
     async def close(self) -> None:
@@ -303,7 +649,8 @@ class SQL:
             except Exception as e:
                 if self.disp:
                     self.disp.log_error(
-                        f"Error while closing connection pool: {e}")
+                        f"Error while closing connection pool: {e}"
+                    )
         # Clean up all references
         self.sql_manage_connections = None
         self.sql_query_boilerplates = None

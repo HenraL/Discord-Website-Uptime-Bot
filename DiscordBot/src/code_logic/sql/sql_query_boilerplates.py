@@ -66,7 +66,8 @@ class SQLQueryBoilerplates:
         """
         title = "get_triggers"
         self.disp.log_debug(
-            "Fetching all triggers and their SQL definitions.", title)
+            "Fetching all triggers and their SQL definitions.", title
+        )
 
         query = "SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'sqlite_%';"
         resp = await self.sql_pool.run_and_fetch_all(query=query)
@@ -149,7 +150,8 @@ class SQLQueryBoilerplates:
         sql_definition = resp[0][0] if resp and len(resp[0]) > 0 else None
         if not sql_definition:
             self.disp.log_error(
-                f"No SQL definition found for trigger '{trigger_name}'.", title)
+                f"No SQL definition found for trigger '{trigger_name}'.", title
+            )
             return self.error
 
         self.disp.log_debug(
@@ -167,7 +169,8 @@ class SQLQueryBoilerplates:
         self.disp.log_debug("Getting table names.", title)
         # sqlite: List tables from sqlite_master; ignore internal sqlite_ tables
         resp = await self.sql_pool.run_and_fetch_all(
-            query="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+            query="SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+        )
         if isinstance(resp, int):
             self.disp.log_error(
                 "Failed to fetch the table names.",
@@ -198,7 +201,10 @@ class SQLQueryBoilerplates:
             self.disp.log_error("Failed to fetch trigger names.", title)
             return self.error
 
-        data = [i[0] for i in resp if i and i[0]]
+        data = []
+        for i in resp:
+            if i and i[0]:
+                data.append(i[0])
         self.disp.log_debug(f"Triggers fetched: {data}", title)
         return data
 
@@ -227,7 +233,8 @@ class SQLQueryBoilerplates:
         try:
             # SQLite equivalent: PRAGMA table_info(table) returns rows: (cid, name, type, notnull, dflt_value, pk)
             resp = await self.sql_pool.run_and_fetch_all(
-                query=f"PRAGMA table_info('{table}');")
+                query=f"PRAGMA table_info('{table}');"
+            )
             if isinstance(resp, int):
                 self.disp.log_error(
                     f"Failed to describe table  {table}", title
@@ -316,9 +323,10 @@ class SQLQueryBoilerplates:
         try:
             # Escape single quotes in table/column names defensively
             table_safe = table.replace("'", "''")
-            columns_def = ", ".join(
-                f"'{name.replace("'", "''")}' {col_type}" for name, col_type in columns
-            )
+            _tmp = []
+            for name, col_type in columns:
+                _tmp.append(f"'{name.replace("'", "''")}' {col_type}")
+            columns_def = ", ".join(_tmp)
 
             query = f"CREATE TABLE IF NOT EXISTS '{table_safe}' ({columns_def});"
             self.disp.log_debug(f"Executing SQL: {query}", title)
@@ -370,7 +378,8 @@ class SQLQueryBoilerplates:
         # At this point column should be a List of strings; cast for the type checker
         column = cast(List[str], column)
         _tmp_cols: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(
-            column)
+            column
+        )
         column = cast(List[str], _tmp_cols)
         column_str = ", ".join(column)
         column_length = len(column)
@@ -381,7 +390,9 @@ class SQLQueryBoilerplates:
             max_lengths = len(data)
             for index, line in enumerate(data):
                 values += self.sanitize_functions.process_sql_line(
-                    cast(List[str], line), column, column_length
+                    cast(List[str], line),
+                    column,
+                    column_length
                 )
                 if index < max_lengths - 1:
                     values += ", "
@@ -391,7 +402,9 @@ class SQLQueryBoilerplates:
         elif isinstance(data, List):
             self.disp.log_debug("processing single array", title)
             values = self.sanitize_functions.process_sql_line(
-                cast(List[str], data), column, column_length
+                cast(List[str], data),
+                column,
+                column_length
             )
         else:
             self.disp.log_error(
@@ -509,8 +522,8 @@ class SQLQueryBoilerplates:
         data = await self.describe_table(table)
         if isinstance(data, int):
             return self.error
-        resp_List = cast(List[Any], resp)
-        return self.sanitize_functions.beautify_table(cast(List[str], data), resp_List)
+        resp_list = cast(List[Any], resp)
+        return self.sanitize_functions.beautify_table(cast(List[str], data), resp_list)
 
     async def get_table_size(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "") -> int:
         """Return the number of rows matching the optional WHERE clause.
@@ -547,16 +560,16 @@ class SQLQueryBoilerplates:
                 "Failed to fetch the data from the table.", title
             )
             return SCONST.GET_TABLE_SIZE_ERROR
-        resp_List = cast(List[Any], resp)
-        if len(resp_List) == 0:
+        resp_list = cast(List[Any], resp)
+        if len(resp_list) == 0:
             self.disp.log_error(
                 "There was no data returned by the query.", title
             )
             return SCONST.GET_TABLE_SIZE_ERROR
-        if not isinstance(resp_List[0], tuple):
+        if not isinstance(resp_list[0], tuple):
             self.disp.log_error("The data returned is not a tuple.", title)
             return SCONST.GET_TABLE_SIZE_ERROR
-        return resp_List[0][0]
+        return resp_list[0][0]
 
     async def update_data_in_table(self, table: str, data: List[str], column: Union[List[str], str, None], where: Union[str, List[str]] = "") -> int:
         """Update rows in ``table`` matching ``where`` with values from ``data``.
@@ -590,7 +603,8 @@ class SQLQueryBoilerplates:
         # Ensure column is a List[str] for subsequent operations
         column = cast(List[str], column)
         _tmp_cols2: Union[List[str], str] = self.sanitize_functions.escape_risky_column_names(
-            column)
+            column
+        )
         column = cast(List[str], _tmp_cols2)
 
         if isinstance(column, str) and isinstance(data, str):
@@ -636,13 +650,15 @@ class SQLQueryBoilerplates:
         """
         title = "insert_or_update_trigger"
         self.disp.log_debug(
-            f"Creating or replacing trigger: {trigger_name}", title)
+            f"Creating or replacing trigger: {trigger_name}", title
+        )
 
         # First, drop the existing trigger (if any)
         drop_result = await self.remove_trigger(trigger_name)
         if drop_result not in (self.success, self.error):
             self.disp.log_warning(
-                f"Unexpected drop_trigger result: {drop_result}", title)
+                f"Unexpected drop_trigger result: {drop_result}", title
+            )
 
         # Insert the new one
         return await self.insert_trigger(trigger_name, trigger_sql)
@@ -663,7 +679,8 @@ class SQLQueryBoilerplates:
         """
         title = "insert_or_update_data_into_table"
         self.disp.log_debug(
-            "Inserting or updating data into the table.", title)
+            "Inserting or updating data into the table.", title
+        )
 
         if self.sql_injection.check_if_injections_in_strings(cast(Union[str, List[str], List[List[str]]], [table] + (columns or []))):
             self.disp.log_error("SQL Injection detected.", "sql")
@@ -685,13 +702,14 @@ class SQLQueryBoilerplates:
                     f"Failed to retrieve data from table {table}", title
                 )
                 return self.error
-        table_content_List = cast(List[Any], table_content)
-        # table_content_List is now safe to iterate over
+        table_content_list = cast(List[Any], table_content)
+        # table_content_list is now safe to iterate over
 
         if isinstance(data, List) and data and isinstance(data[0], List):
             self.disp.log_debug("Processing double data List", title)
-            table_content_dict = {
-                str(line[0]): line for line in table_content_List}
+            table_content_dict = {}
+            for line in table_content_list:
+                table_content_dict[str(line[0])] = line
 
             for line in data:
                 if not line:
@@ -700,7 +718,9 @@ class SQLQueryBoilerplates:
                 node0 = str(line[0])
                 if node0 in table_content_dict:
                     await self.update_data_in_table(
-                        table, cast(List[str], line), cast(List[str], columns),
+                        table,
+                        cast(List[str], line),
+                        cast(List[str], columns),
                         f"{columns[0]} = {node0}"
                     )
                 else:
@@ -715,7 +735,7 @@ class SQLQueryBoilerplates:
                 return self.success
 
             node0 = str(data[0])
-            for line in table_content_List:
+            for line in table_content_list:
                 if str(line[0]) == node0:
                     return await self.update_data_in_table(table, cast(List[str], data), cast(List[str], columns), f"{columns[0]} = {node0}")
             return await self.insert_data_into_table(table, cast(List[str], data), cast(List[str], columns))
@@ -759,8 +779,8 @@ class SQLQueryBoilerplates:
 
         return await self.sql_pool.run_editing_command(sql_query, table, "delete")
 
-    async def drop_table(self, table: str) -> int:
-        """Drop (delete) a table from the SQLite database.
+    async def remove_table(self, table: str) -> int:
+        """Drop/Remove (delete) a table from the SQLite database.
 
         Args:
             table (str): Name of the table to drop.
@@ -821,7 +841,7 @@ class SQLQueryBoilerplates:
             raise RuntimeError(msg) from e
 
     async def remove_trigger(self, trigger_name: str) -> int:
-        """Drop an existing SQL trigger if it exists.
+        """Drop/Remove an existing SQL trigger if it exists.
 
         Args:
             trigger_name (str): Name of the trigger to drop.
@@ -839,7 +859,8 @@ class SQLQueryBoilerplates:
         # Sanitize to prevent injections
         if self.sql_injection.check_if_injections_in_strings([trigger_name]):
             self.disp.log_error(
-                "SQL Injection detected in trigger name.", title)
+                "SQL Injection detected in trigger name.", title
+            )
             return self.error
 
         sql_query = f"DROP TRIGGER IF EXISTS {trigger_name};"
@@ -848,9 +869,11 @@ class SQLQueryBoilerplates:
         result = await self.sql_pool.run_editing_command(sql_query, trigger_name, "drop_trigger")
         if result != self.success:
             self.disp.log_error(
-                f"Failed to drop trigger '{trigger_name}'.", title)
+                f"Failed to drop trigger '{trigger_name}'.", title
+            )
             return self.error
 
         self.disp.log_info(
-            f"Trigger '{trigger_name}' dropped successfully.", title)
+            f"Trigger '{trigger_name}' dropped successfully.", title
+        )
         return self.success
