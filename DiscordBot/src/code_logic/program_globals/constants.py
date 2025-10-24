@@ -57,11 +57,12 @@ WEBSITE_STATUS: Dict[str, WebsiteStatus] = {
 }
 
 # Table structure
+SQLITE_MESSAGES_MESSAGE_ID_NAME: str = "message_id"
 SQLITE_TABLE_NAME_MESSAGES: str = "messages"
 SQLITE_TABLE_COLUMNS_MESSAGES: List[Tuple[str, str]] = [
     ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
     ("name", "TEXT"),
-    ("message_id", "INTEGER UNIQUE NULL"),
+    (f"{SQLITE_MESSAGES_MESSAGE_ID_NAME}", "INTEGER UNIQUE NULL"),
     ("url", "TEXT UNIQUE NOT NULL"),
     ("channel", "INTEGER NOT NULL"),
     ("expected_content", "TEXT NOT NULL"),
@@ -195,3 +196,11 @@ class WebsiteNode:
     case_sensitive: bool = DEFAULT_CASE_SENSITIVITY
     expected_status: int = 0
     dead_checks: List[DeadCheck] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class DiscordMessage:
+    website_id: Optional[int] = None
+    message_human: str = ""
+    message_channel: Optional[int] = None
+    message_id: Optional[int] = None
