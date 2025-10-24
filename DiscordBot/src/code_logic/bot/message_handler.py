@@ -5,7 +5,7 @@ monitored websites, ensures required database tables exist, and exposes
 helpers to check website status and content.
 """
 
-from typing import List, Tuple, Dict, Any, Optional, Union, cast
+from typing import List, Tuple, Dict, Any, Optional, Union, cast, overload
 
 import re
 import requests
@@ -36,6 +36,7 @@ class MessageHandler:
             message_schema (List[Any]): Raw JSON schema describing websites.
             debug (bool): Enable debug logging.
         """
+        self.boot_called: bool = False
         self.debug: bool = debug
         self.connection: SQL = sql_connection
         self.message_schema: List[Any] = message_schema
@@ -508,7 +509,15 @@ class MessageHandler:
         )
         return status
 
-    async def _update_status_history_table(self, websites: CONST.WebsiteNode) -> int:
+    @overload
+    async def _update_status_history_table(
+        self, websites: CONST.WebsiteNode) -> int: ...
+
+    @overload
+    async def _update_status_history_table(
+        self, websites: CONST.WebsiteNode, query_status: bool) -> Union[int, CONST.QueryStatus]: ...
+
+    async def _update_status_history_table(self, websites: CONST.WebsiteNode, query_status: bool = False) -> Union[int, CONST.QueryStatus]:
         dest_table: str = CONST.SQLITE_TABLE_NAME_STATUS_HISTORY
         columns: Union[List[str], int] = await self.connection.get_table_column_names(dest_table)
         if isinstance(columns, int):
@@ -541,6 +550,8 @@ class MessageHandler:
             data,
             columns_cleaned
         )
+        if status == CONST.SUCCESS and query_status:
+            return status_check
         return status
 
     async def _update_table_content(self) -> int:
@@ -570,12 +581,68 @@ class MessageHandler:
                 return CONST.ERROR
         return CONST.SUCCESS
 
+    async def _check_database_connection(self) -> int:
+        try:
+            _ = await self.connection.get_table_names()
+            return CONST.SUCCESS
+        except RuntimeError as e:
+            self.disp.log_warning(
+                "Database connection not initialised, initialising with the 'create' function"
+            )
+            try:
+                _url = self.connection.url
+                _port = self.connection.port
+                _username = self.connection.username
+                _password = self.connection.password
+                _db_name = self.connection.db_name
+                _success = self.connection.success
+                _error = self.connection.error
+                _debug = self.connection.debug
+                self.disp.log_debug("Attempting to initialise the connection")
+                _conn_tmp: SQL = await self.connection.create(
+                    url=_url,
+                    port=_port,
+                    username=_username,
+                    password=_password,
+                    db_name=_db_name,
+                    success=_success,
+                    error=_error,
+                    debug=_debug
+                )
+                try:
+                    self.disp.log_debug(
+                        "Attempting to get the tables in the database"
+                    )
+                    _ = await _conn_tmp.get_table_names()
+                    self.disp.log_debug(
+                        "Updating the class connection reference."
+                    )
+                    self.connection = _conn_tmp
+                    self.disp.log_info(
+                        f"Database connection initialisation success."
+                    )
+                    return CONST.SUCCESS
+                except RuntimeError as e:
+                    self.disp.log_error(
+                        f"Database connection initialisation failed: '{e}'"
+                    )
+                    return CONST.ERROR
+            except RuntimeError as e:
+                self.disp.log_error(
+                    f"Database connection initialisation failed: '{e}'"
+                )
+                return CONST.ERROR
+
     async def boot_up(self) -> int:
         """Function containing the steps for the class to properly start up.
 
         Returns:
             int: The run status of the class
         """
+        status: int = await self._check_database_connection()
+        if status != CONST.SUCCESS:
+            self.disp.log_error("The database connection check failed.")
+            return CONST.ERROR
         status: int = await self._initialise_table()
         if status != CONST.SUCCESS:
             self.disp.log_error("The initialisation of the tables failed.")
@@ -594,8 +661,106 @@ class MessageHandler:
                 "Failed to update the table content with the configuration content"
             )
             return CONST.ERROR
+        self.boot_called = True
         return CONST.SUCCESS
 
-    async def run(self) -> None:
+    async def refresh_message_id(self, discord_message: CONST.DiscordMessage) -> int:
+        """Function in charge of updating the message id in the database with the latest discord returned id.
+
+        Args:
+            discord_message (CONST.DiscordMessage): _description_
+
+        Returns:
+            int: _description_
+        """
+        if not discord_message.website_id or not discord_message.message_channel or not discord_message.message_id:
+            self.disp.log_warning(
+                "Received corrupted or invalid DiscordMessage dataclass, skipping"
+            )
+            return CONST.ERROR
+        status: int = await self.connection.update_data_in_table(
+            CONST.SQLITE_TABLE_NAME_MESSAGES,
+            [str(discord_message.message_id)],
+            [str(CONST.SQLITE_MESSAGES_MESSAGE_ID_NAME)],
+            f"id='{discord_message.website_id}'"
+        )
+        if status != CONST.SUCCESS:
+            self.disp.log_error(
+                "Failed to update the website in the database with the current discord message id."
+            )
+        return status
+
+    async def _get_message_id_from_database(self, discord_message: CONST.DiscordMessage) -> Union[CONST.DiscordMessage, int]:
+        """Function in charge of getting the message id from the database if present.
+
+        Args:
+            discord_message (CONST.DiscordMessage): _description_
+
+        Returns:
+            int: _description_
+        """
+        if not discord_message.website_id or not discord_message.message_channel or not discord_message.message_id:
+            self.disp.log_warning(
+                "Received corrupted or invalid DiscordMessage dataclass, skipping"
+            )
+            return CONST.ERROR
+        content: Union[int, List[Tuple[Any, Any]]] = await self.connection.get_data_from_table(
+            CONST.SQLITE_TABLE_NAME_MESSAGES,
+            [str(CONST.SQLITE_MESSAGES_MESSAGE_ID_NAME)],
+            f"id='{discord_message.website_id}'",
+            beautify=False
+        )
+        if isinstance(content, int):
+            self.disp.log_error(
+                "Failed to retreive the website's message id from the database."
+            )
+            return CONST.ERROR
+        self.disp.log_debug(f"Gathered data: {content}")
+        if len(content) > 0:
+            if isinstance(content[0], Tuple):
+                discord_message.message_id = content[0][0]
+        self.disp.log_debug(f"Final message id: {discord_message.message_id}")
+        return discord_message
+
+    async def _build_discord_message(self, website_node: CONST.WebsiteNode) -> Union[int, CONST.DiscordMessage]:
+        _dm: CONST.DiscordMessage = CONST.DiscordMessage()
+        _dm.message_channel = website_node.channel
+        query_status: Union[int, CONST.QueryStatus] = await self._update_status_history_table(website_node, True)
+        if isinstance(query_status, int):
+            self.disp.log_error("Failed to check the website status.")
+            return CONST.ERROR
+        _dm.message_human = self._make_human_readable(
+            website_node.url,
+            query_status.status
+        )
+        _dm.website_id = query_status.website_id
+        message_id: Union[int, CONST.DiscordMessage] = await self._get_message_id_from_database(_dm)
+        if isinstance(message_id, int):
+            self.disp.log_warning(
+                "Message id not found in the database, ignoring because it will be set upon the first message send."
+            )
+        else:
+            _dm.message_id = message_id.message_id
+        return _dm
+
+    async def run(self) -> Union[int, List[CONST.DiscordMessage]]:
         """Function in charge of running the logic of the bot's mainloop"""
-        return
+        if not self.processed_json or not self.boot_called:
+            self.disp.log_error(
+                "There are no websites to monitor, did you think to call the boot_up function?"
+            )
+            return CONST.ERROR
+        run_status: List[CONST.DiscordMessage] = []
+        for site in self.processed_json:
+            if not isinstance(site, CONST.WebsiteNode):
+                self.disp.log_warning(
+                    f"The current site node is of an unknown type, got '({type(site)})' but expected '{type(CONST.WebsiteNode)}', skipping"
+                )
+                continue
+            _tmp: Union[int, CONST.DiscordMessage] = await self._build_discord_message(site)
+            if not isinstance(_tmp, CONST.DiscordMessage):
+                self.disp.log_warning(
+                    f"Failed to check '({site.url})', skipping update")
+                continue
+            run_status.append(_tmp)
+        return run_status
