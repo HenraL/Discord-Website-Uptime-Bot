@@ -5,7 +5,7 @@ async convenience functions to create/drop tables, insert/update or
 query data using an underlying async connection manager. The helpers
 perform defensive sanitisation and basic SQL injection checks.
 """
-from typing import List, Dict, Union, Any, Tuple, cast
+from typing import List, Dict, Union, Any, Tuple, Literal, cast, overload
 
 import sqlite3
 
@@ -58,6 +58,31 @@ class SQLQueryBoilerplates:
             success=self.success, error=self.error, debug=self.debug
         )
 
+    async def get_triggers(self) -> Union[int, Dict[str, str]]:
+        """Return a dictionary of all triggers and their SQL definitions.
+
+        Returns:
+            Union[int, Dict[str, str]]: Dict of {trigger_name: sql_definition}, or ``self.error``.
+        """
+        title = "get_triggers"
+        self.disp.log_debug(
+            "Fetching all triggers and their SQL definitions.", title)
+
+        query = "SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'sqlite_%';"
+        resp = await self.sql_pool.run_and_fetch_all(query=query)
+
+        if isinstance(resp, int):
+            self.disp.log_error("Failed to fetch triggers.", title)
+            return self.error
+
+        data: Dict[str, str] = {}
+        for row in resp:
+            if len(row) >= 2 and row[0] and row[1]:
+                data[row[0]] = row[1]
+
+        self.disp.log_debug(f"Triggers fetched: {list(data.keys())}", title)
+        return data
+
     async def get_table_column_names(self, table_name: str) -> Union[List[str], int]:
         """Return the list of column names for ``table_name``.
 
@@ -87,6 +112,51 @@ class SQLQueryBoilerplates:
             self.disp.log_error(msg, "get_table_column_names")
             return self.error
 
+    async def get_trigger(self, trigger_name: str) -> Union[int, str]:
+        """Return the SQL definition of a specific trigger.
+
+        Args:
+            trigger_name (str): The trigger name to fetch.
+
+        Returns:
+            Union[int, str]: The SQL definition, or ``self.error`` on failure.
+        """
+        title = "get_trigger"
+        self.disp.log_debug(
+            f"Getting trigger definition for '{trigger_name}'", title
+        )
+
+        if not trigger_name:
+            self.disp.log_error("Trigger name cannot be empty.", title)
+            return self.error
+
+        # SQL injection defense
+        if self.sql_injection.check_if_injections_in_strings([trigger_name]):
+            self.disp.log_error(
+                "SQL Injection detected in trigger name.", title
+            )
+            return self.error
+
+        query = f"SELECT sql FROM sqlite_master WHERE type='trigger' AND name = '{trigger_name}';"
+        resp = await self.sql_pool.run_and_fetch_all(query=query)
+
+        if isinstance(resp, int) or not resp:
+            self.disp.log_error(
+                f"Failed to retrieve trigger '{trigger_name}'.", title
+            )
+            return self.error
+
+        sql_definition = resp[0][0] if resp and len(resp[0]) > 0 else None
+        if not sql_definition:
+            self.disp.log_error(
+                f"No SQL definition found for trigger '{trigger_name}'.", title)
+            return self.error
+
+        self.disp.log_debug(
+            f"SQL for trigger '{trigger_name}':\n{sql_definition}", title
+        )
+        return sql_definition
+
     async def get_table_names(self) -> Union[int, List[str]]:
         """Return a list of non-internal table names in the database.
 
@@ -110,6 +180,26 @@ class SQLQueryBoilerplates:
             data.append(i[0])
         self.disp.log_debug(f"response (cleaned) = {data}")
         self.disp.log_debug("Tables fetched", title)
+        return data
+
+    async def get_trigger_names(self) -> Union[int, List[str]]:
+        """Return a list of non-internal trigger names in the database.
+
+        Returns:
+            Union[int, List[str]]: List of trigger names, or ``self.error`` on failure.
+        """
+        title = "get_trigger_names"
+        self.disp.log_debug("Getting trigger names.", title)
+
+        query = "SELECT name FROM sqlite_master WHERE type='trigger' AND name NOT LIKE 'sqlite_%';"
+        resp = await self.sql_pool.run_and_fetch_all(query=query)
+
+        if isinstance(resp, int):
+            self.disp.log_error("Failed to fetch trigger names.", title)
+            return self.error
+
+        data = [i[0] for i in resp if i and i[0]]
+        self.disp.log_debug(f"Triggers fetched: {data}", title)
         return data
 
     async def describe_table(self, table: str) -> Union[int, List[Any]]:
@@ -254,67 +344,6 @@ class SQLQueryBoilerplates:
             self.disp.log_critical(msg, title)
             raise RuntimeError(msg) from e
 
-    async def drop_table(self, table: str) -> int:
-        """Drop (delete) a table from the SQLite database.
-
-        Args:
-            table (str): Name of the table to drop.
-
-        Returns:
-            int: ``self.success`` on success, or ``self.error`` on failure.
-
-        Example:
-            Example usage to drop the ``users`` table:
-
-            .. code-block:: python
-
-                table_name = "users"
-                result = await self.drop_table(table_name)
-
-                if result == self.success:
-                    print(f"Table '{table_name}' dropped successfully.")
-                else:
-                    print(f"Failed to drop table '{table_name}'.")
-
-        Notes:
-            - The method performs SQL injection detection on the table name.
-            - If the table does not exist, no error is raised (uses ``DROP TABLE IF EXISTS`` internally).
-        """
-        title = "drop_table"
-        self.disp.log_debug(f"Dropping table '{table}'", title)
-
-        # --- SQL injection protection ---
-        if self.sql_injection.check_if_injections_in_strings([table]):
-            self.disp.log_error("Injection detected in table name.", title)
-            return self.error
-
-        try:
-            # Escape quotes for safety
-            table_safe = table.replace("'", "''")
-            query = f"DROP TABLE IF EXISTS '{table_safe}';"
-            self.disp.log_debug(f"Executing SQL: {query}", title)
-
-            result = await self.sql_pool.run_and_commit(query=query)
-            if isinstance(result, int) and result == self.error:
-                self.disp.log_error(f"Failed to drop table '{table}'", title)
-                return self.error
-
-            self.disp.log_info(f"Table '{table}' dropped successfully.", title)
-            return self.success
-
-        except sqlite3.OperationalError as oe:
-            msg = f"OperationalError while dropping table '{table}': {oe}"
-            self.disp.log_critical(msg, title)
-            raise RuntimeError(msg) from oe
-        except sqlite3.Error as e:
-            msg = f"SQLite Error while dropping table '{table}': {e}"
-            self.disp.log_critical(msg, title)
-            raise RuntimeError(msg) from e
-        except Exception as e:
-            msg = f"Unexpected error while dropping table '{table}': {e}"
-            self.disp.log_critical(msg, title)
-            raise RuntimeError(msg) from e
-
     async def insert_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], column: Union[List[str], None] = None) -> int:
         """Insert one or multiple rows into ``table``.
 
@@ -374,7 +403,68 @@ class SQLQueryBoilerplates:
         self.disp.log_debug(f"sql_query = '{sql_query}'", title)
         return await self.sql_pool.run_editing_command(sql_query, table, "insert")
 
-    async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, List[Dict[str, Any]]]:
+    async def insert_trigger(self, trigger_name: str, trigger_sql: str) -> int:
+        """Insert a new SQL trigger into the database.
+
+        Args:
+            trigger_name (str): Name of the trigger to create.
+            trigger_sql (str): SQL command defining the trigger.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        title = "insert_trigger"
+        self.disp.log_debug(f"Inserting trigger: {trigger_name}", title)
+
+        # Sanity checks
+        if not trigger_name or not trigger_sql:
+            self.disp.log_error(
+                "Trigger name and SQL must not be empty.", title
+            )
+            return self.error
+
+        # Injection prevention
+        if self.sql_injection.check_if_injections_in_strings(trigger_name):
+            self.disp.log_error(
+                "SQL Injection detected in trigger creation.", title
+            )
+            return self.error
+
+        # Run the SQL command
+        sql_query = trigger_sql.strip()
+        self.disp.log_debug(f"Executing trigger creation:\n{sql_query}", title)
+
+        result = await self.sql_pool.run_editing_command(sql_query, trigger_name, "create_trigger")
+        if result != self.success:
+            self.disp.log_error(
+                f"Failed to create trigger '{trigger_name}'.", title
+            )
+            return self.error
+
+        self.disp.log_info(
+            f"Trigger '{trigger_name}' successfully created.", title
+        )
+        return self.success
+
+    @overload
+    async def get_data_from_table(
+        self,
+        table: str,
+        column: Union[str, List[str]],
+        where: Union[str, List[str]] = "",
+        beautify: Literal[True] = True,
+    ) -> Union[int, List[Dict[str, Any]]]: ...
+
+    @overload
+    async def get_data_from_table(
+        self,
+        table: str,
+        column: Union[str, List[str]],
+        where: Union[str, List[str]] = "",
+        beautify: Literal[False] = False,
+    ) -> Union[int, List[Tuple[str, Any]]]: ...
+
+    async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, Union[List[Dict[str, Any]], List[Tuple[str, Any]]]]:
         """Query rows from ``table`` and optionally return them in a beautified form.
 
         Args:
@@ -386,8 +476,7 @@ class SQLQueryBoilerplates:
                 keyed by column names. Defaults to True.
 
         Returns:
-            Union[int, List[Dict[str, Any]]]: Beautified list of rows on
-            success, or ``self.error`` on failure.
+            Union[int, List[Dict[str, Any]], List[Tuple[str, Any]]]: Beautified list of Dictionaries on success and if beautify is True, otherwise, a list of tuples is beautify is set to False, or ``self.error`` on failure.
         """
         title = "get_data_from_table"
         self.disp.log_debug(f"fetching data from the table {table}", title)
@@ -535,6 +624,29 @@ class SQLQueryBoilerplates:
 
         return await self.sql_pool.run_editing_command(sql_query, table, "update")
 
+    async def insert_or_update_trigger(self, trigger_name: str, trigger_sql: str) -> int:
+        """Insert or update an existing SQL trigger.
+
+        Args:
+            trigger_name (str): Name of the trigger to create or replace.
+            trigger_sql (str): SQL command defining the trigger.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        title = "insert_or_update_trigger"
+        self.disp.log_debug(
+            f"Creating or replacing trigger: {trigger_name}", title)
+
+        # First, drop the existing trigger (if any)
+        drop_result = await self.remove_trigger(trigger_name)
+        if drop_result not in (self.success, self.error):
+            self.disp.log_warning(
+                f"Unexpected drop_trigger result: {drop_result}", title)
+
+        # Insert the new one
+        return await self.insert_trigger(trigger_name, trigger_sql)
+
     async def insert_or_update_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], columns: Union[List[str], None] = None) -> int:
         """Insert new rows or update existing rows for ``table``.
 
@@ -596,7 +708,7 @@ class SQLQueryBoilerplates:
             # finished processing multiple rows
             return self.success
 
-        elif isinstance(data, List):
+        if isinstance(data, List):
             self.disp.log_debug("Processing single data List", title)
             if not data:
                 self.disp.log_warning("Empty data List, skipping.", title)
@@ -608,11 +720,10 @@ class SQLQueryBoilerplates:
                     return await self.update_data_in_table(table, cast(List[str], data), cast(List[str], columns), f"{columns[0]} = {node0}")
             return await self.insert_data_into_table(table, cast(List[str], data), cast(List[str], columns))
 
-        else:
-            self.disp.log_error(
-                "Data must be of type List[str] or List[List[str]]", title
-            )
-            return self.error
+        self.disp.log_error(
+            "Data must be of type List[str] or List[List[str]]", title
+        )
+        return self.error
 
     async def remove_data_from_table(self, table: str, where: Union[str, List[str]] = "") -> int:
         """Delete rows from ``table`` matching ``where``.
@@ -647,3 +758,99 @@ class SQLQueryBoilerplates:
         )
 
         return await self.sql_pool.run_editing_command(sql_query, table, "delete")
+
+    async def drop_table(self, table: str) -> int:
+        """Drop (delete) a table from the SQLite database.
+
+        Args:
+            table (str): Name of the table to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on failure.
+
+        Example:
+            Example usage to drop the ``users`` table:
+
+            .. code-block:: python
+
+                table_name = "users"
+                result = await self.drop_table(table_name)
+
+                if result == self.success:
+                    print(f"Table '{table_name}' dropped successfully.")
+                else:
+                    print(f"Failed to drop table '{table_name}'.")
+
+        Notes:
+            - The method performs SQL injection detection on the table name.
+            - If the table does not exist, no error is raised (uses ``DROP TABLE IF EXISTS`` internally).
+        """
+        title = "drop_table"
+        self.disp.log_debug(f"Dropping table '{table}'", title)
+
+        # --- SQL injection protection ---
+        if self.sql_injection.check_if_injections_in_strings([table]):
+            self.disp.log_error("Injection detected in table name.", title)
+            return self.error
+
+        try:
+            # Escape quotes for safety
+            table_safe = table.replace("'", "''")
+            query = f"DROP TABLE IF EXISTS '{table_safe}';"
+            self.disp.log_debug(f"Executing SQL: {query}", title)
+
+            result = await self.sql_pool.run_and_commit(query=query)
+            if isinstance(result, int) and result == self.error:
+                self.disp.log_error(f"Failed to drop table '{table}'", title)
+                return self.error
+
+            self.disp.log_info(f"Table '{table}' dropped successfully.", title)
+            return self.success
+
+        except sqlite3.OperationalError as oe:
+            msg = f"OperationalError while dropping table '{table}': {oe}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from oe
+        except sqlite3.Error as e:
+            msg = f"SQLite Error while dropping table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+        except Exception as e:
+            msg = f"Unexpected error while dropping table '{table}': {e}"
+            self.disp.log_critical(msg, title)
+            raise RuntimeError(msg) from e
+
+    async def remove_trigger(self, trigger_name: str) -> int:
+        """Drop an existing SQL trigger if it exists.
+
+        Args:
+            trigger_name (str): Name of the trigger to drop.
+
+        Returns:
+            int: ``self.success`` on success, or ``self.error`` on error.
+        """
+        title = "drop_trigger"
+        self.disp.log_debug(f"Dropping trigger: {trigger_name}", title)
+
+        if not trigger_name:
+            self.disp.log_error("Trigger name cannot be empty.", title)
+            return self.error
+
+        # Sanitize to prevent injections
+        if self.sql_injection.check_if_injections_in_strings([trigger_name]):
+            self.disp.log_error(
+                "SQL Injection detected in trigger name.", title)
+            return self.error
+
+        sql_query = f"DROP TRIGGER IF EXISTS {trigger_name};"
+        self.disp.log_debug(f"Executing SQL:\n{sql_query}", title)
+
+        result = await self.sql_pool.run_editing_command(sql_query, trigger_name, "drop_trigger")
+        if result != self.success:
+            self.disp.log_error(
+                f"Failed to drop trigger '{trigger_name}'.", title)
+            return self.error
+
+        self.disp.log_info(
+            f"Trigger '{trigger_name}' dropped successfully.", title)
+        return self.success

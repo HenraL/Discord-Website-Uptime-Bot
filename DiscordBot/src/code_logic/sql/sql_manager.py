@@ -5,7 +5,7 @@ the database. The module exposes a class providing convenience async
 methods for common operations (create/drop tables, queries, inserts,
 etc.) while performing defensive sanitisation.
 """
-from typing import Optional, Callable, Awaitable, Union, List, Dict, Tuple, Any
+from typing import Optional, Callable, Awaitable, Union, List, Dict, Tuple, Any, overload
 
 from display_tty import Disp
 from ..program_globals.helpers import initialise_logger
@@ -87,11 +87,27 @@ class SQL:
             [str, List[Tuple[str, str]]],
             Awaitable[int]
         ]
+        self.create_trigger: Callable[
+            [str, str],
+            Awaitable[int]
+        ]
         self.get_table_column_names: Callable[
             [str],
             Awaitable[Union[List[str], int]]
         ]
         self.get_table_names: Callable[
+            [],
+            Awaitable[Union[int, List[str]]]
+        ]
+        self.get_triggers: Callable[
+            [],
+            Awaitable[Union[int, Dict[str, str]]]
+        ]
+        self.get_trigger: Callable[
+            [str],
+            Awaitable[Union[int, str]]
+        ]
+        self.get_trigger_names: Callable[
             [],
             Awaitable[Union[int, List[str]]]
         ]
@@ -103,9 +119,25 @@ class SQL:
             [str, Union[List[List[str]], List[str]], Union[List[str], None]],
             Awaitable[int]
         ]
+        self.insert_trigger: Callable[
+            [str, str],
+            Awaitable[int]
+        ]
         self.get_data_from_table: Callable[
             [str, Union[str, List[str]], Union[str, List[str]], bool],
-            Awaitable[Union[int, List[Dict[str, Any]]]]
+            Awaitable[
+                Union[
+                    int,
+                    Union[
+                        List[
+                            Dict[str, Any]
+                        ],
+                        List[
+                            Tuple[str, Any]
+                        ]
+                    ]
+                ]
+            ]
         ]
         self.get_table_size: Callable[
             [str, Union[str, List[str]], Union[str, List[str]]],
@@ -117,6 +149,10 @@ class SQL:
         ]
         self.insert_or_update_data_into_table: Callable[
             [str, Union[List[List[str]], List[str]], Union[List[str], None]],
+            Awaitable[int]
+        ]
+        self.insert_or_update_trigger: Callable[
+            [str, str],
             Awaitable[int]
         ]
         self.remove_data_from_table: Callable[
@@ -135,19 +171,30 @@ class SQL:
             [str],
             Awaitable[int]
         ]
+        self.remove_trigger: Callable[[str], Awaitable[int]]
+        self.drop_trigger: Callable[[str], Awaitable[int]]
+
         self.create_table = _uninitialized
+        self.create_trigger = _uninitialized
         self.get_table_column_names = _uninitialized
         self.get_table_names = _uninitialized
+        self.get_trigger = _uninitialized
+        self.get_triggers = _uninitialized
+        self.get_trigger_names = _uninitialized
         self.describe_table = _uninitialized
+        self.insert_trigger = _uninitialized
         self.insert_data_into_table = _uninitialized
         self.get_data_from_table = _uninitialized
         self.get_table_size = _uninitialized
         self.update_data_in_table = _uninitialized
         self.insert_or_update_data_into_table = _uninitialized
+        self.insert_or_update_trigger = _uninitialized
         self.remove_data_from_table = _uninitialized
         self.drop_data_from_table = _uninitialized
         self.remove_table = _uninitialized
         self.drop_table = _uninitialized
+        self.remove_trigger = _uninitialized
+        self.drop_trigger = _uninitialized
 
     def __del__(self) -> None:
         """Best-effort cleanup invoked when the instance is garbage-collected.
@@ -226,18 +273,26 @@ class SQL:
         )
         # Bind convenience methods
         self.create_table = self.sql_query_boilerplates.create_table
+        self.create_trigger = self.sql_query_boilerplates.insert_trigger
         self.get_table_column_names = self.sql_query_boilerplates.get_table_column_names
         self.get_table_names = self.sql_query_boilerplates.get_table_names
+        self.get_trigger = self.sql_query_boilerplates.get_trigger
+        self.get_triggers = self.sql_query_boilerplates.get_triggers
+        self.get_trigger_names = self.sql_query_boilerplates.get_trigger_names
         self.describe_table = self.sql_query_boilerplates.describe_table
+        self.insert_trigger = self.sql_query_boilerplates.insert_trigger
         self.insert_data_into_table = self.sql_query_boilerplates.insert_data_into_table
         self.get_data_from_table = self.sql_query_boilerplates.get_data_from_table
         self.get_table_size = self.sql_query_boilerplates.get_table_size
         self.update_data_in_table = self.sql_query_boilerplates.update_data_in_table
         self.insert_or_update_data_into_table = self.sql_query_boilerplates.insert_or_update_data_into_table
+        self.insert_or_update_trigger = self.sql_query_boilerplates.insert_or_update_trigger
         self.remove_data_from_table = self.sql_query_boilerplates.remove_data_from_table
         self.drop_data_from_table = self.sql_query_boilerplates.remove_data_from_table
         self.remove_table = self.sql_query_boilerplates.drop_table
         self.drop_table = self.sql_query_boilerplates.drop_table
+        self.remove_trigger = self.sql_query_boilerplates.remove_trigger
+        self.drop_trigger = self.sql_query_boilerplates.remove_trigger
         return self
 
     async def close(self) -> None:
