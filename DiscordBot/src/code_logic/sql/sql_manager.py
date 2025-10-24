@@ -332,9 +332,9 @@ class SQL:
         column: Union[str, List[str]],
         where: Union[str, List[str]] = "",
         beautify: Literal[False] = False,
-    ) -> Union[int, List[Tuple[str, Any]]]: ...
+    ) -> Union[int, List[Tuple[Any, Any]]]: ...
 
-    async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, Union[List[Dict[str, Any]], List[Tuple[str, Any]]]]:
+    async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, Union[List[Dict[str, Any]], List[Tuple[Any, Any]]]]:
         """(Wrapper) Delegates to SQLQueryBoilerplates.get_data_from_table
 
         Original docstring:
