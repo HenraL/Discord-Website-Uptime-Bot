@@ -1,7 +1,8 @@
-"""
-    File in charge of storing information that is required for the sql library, but is constant.
-"""
+"""Constants used by the SQL helper modules.
 
+Defines fixed values for table schemas, date formats, error codes and
+other constants used across the SQL helper implementations.
+"""
 from typing import List
 
 # initialisation arguments to remove if empty (or equal to None)

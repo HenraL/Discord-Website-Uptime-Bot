@@ -1,7 +1,8 @@
-"""
-    File in charge of cleaning and sanitising sql queries before they are submitted to the database.
-"""
+"""SQL sanitisation helpers.
 
+Small helpers used by the SQL boilerplate layer to escape column names,
+protect values and build safe SQL fragments for insertion into queries.
+"""
 from typing import List, Dict, Any, Union
 
 from display_tty import Disp
@@ -157,8 +158,10 @@ class SQLSanitiseFunctions:
         return protected_value
 
     def escape_risky_column_names_where_mode(self, columns: Union[List[str], str]) -> Union[List[str], str]:
-        """
-        Escape the risky column names in where mode, except for those in keyword_logic_gates.
+        """Escape risky column names when used in WHERE-like expressions.
+
+        This function protects values and wraps risky identifiers in
+        backticks unless they are part of configured logic gates.
 
         Args:
             columns (Union[str, List[str]]): Column names to be processed.

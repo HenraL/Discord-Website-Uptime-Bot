@@ -1,7 +1,10 @@
-"""
-    File in charge of storing the functions that will interract directly with the database.
-"""
+"""SQL query helpers and high-level database boilerplates.
 
+This module implements :class:`SQLQueryBoilerplates`, a collection of
+async convenience functions to create/drop tables, insert/update or
+query data using an underlying async connection manager. The helpers
+perform defensive sanitisation and basic SQL injection checks.
+"""
 from typing import List, Dict, Union, Any, Tuple, cast
 
 import sqlite3
@@ -16,8 +19,7 @@ from .sql_sanitisation_functions import SQLSanitiseFunctions
 
 
 class SQLQueryBoilerplates:
-    """
-    High-level SQL query helpers and boilerplate functions.
+    """High-level SQL query helpers and boilerplate functions.
 
     This class provides convenient async methods to query and modify the
     database using an underlying async connection manager (``SQLManageConnections``).
@@ -29,8 +31,7 @@ class SQLQueryBoilerplates:
     disp: Disp = initialise_logger(__qualname__, False)
 
     def __init__(self, sql_pool: SQLManageConnections, success: int = 0, error: int = 84, debug: bool = False) -> None:
-        """
-        Initialize the query helper.
+        """Initialize the query helper.
 
         Args:
             sql_pool (SQLManageConnections): Async connection manager used to
@@ -58,8 +59,7 @@ class SQLQueryBoilerplates:
         )
 
     async def get_table_column_names(self, table_name: str) -> Union[List[str], int]:
-        """
-        Return the list of column names for ``table_name``.
+        """Return the list of column names for ``table_name``.
 
         Args:
             table_name (str): Name of the table to inspect.
@@ -88,8 +88,7 @@ class SQLQueryBoilerplates:
             return self.error
 
     async def get_table_names(self) -> Union[int, List[str]]:
-        """
-        Return a list of non-internal table names in the database.
+        """Return a list of non-internal table names in the database.
 
         Returns:
             Union[int, List[str]]: List of table names or ``self.error`` on failure.
@@ -114,8 +113,7 @@ class SQLQueryBoilerplates:
         return data
 
     async def describe_table(self, table: str) -> Union[int, List[Any]]:
-        """
-        Fetch the schema description for a table.
+        """Fetch the schema description for a table.
 
         This returns rows similar to SQLite's PRAGMA table_info but is
         transformed so the first element is the column name (to remain
@@ -177,8 +175,7 @@ class SQLQueryBoilerplates:
             raise RuntimeError(msg) from e
 
     async def create_table(self, table: str, columns: List[Tuple[str, str]]) -> int:
-        """
-        Create a new table in the SQLite database.
+        """Create a new table in the SQLite database.
 
         Args:
             table (str): Name of the new table.
@@ -258,8 +255,7 @@ class SQLQueryBoilerplates:
             raise RuntimeError(msg) from e
 
     async def drop_table(self, table: str) -> int:
-        """
-        Drop (delete) a table from the SQLite database.
+        """Drop (delete) a table from the SQLite database.
 
         Args:
             table (str): Name of the table to drop.
@@ -320,8 +316,7 @@ class SQLQueryBoilerplates:
             raise RuntimeError(msg) from e
 
     async def insert_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], column: Union[List[str], None] = None) -> int:
-        """
-        Insert one or multiple rows into ``table``.
+        """Insert one or multiple rows into ``table``.
 
         Args:
             table (str): Table name.
@@ -380,9 +375,7 @@ class SQLQueryBoilerplates:
         return await self.sql_pool.run_editing_command(sql_query, table, "insert")
 
     async def get_data_from_table(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "", beautify: bool = True) -> Union[int, List[Dict[str, Any]]]:
-        """
-        Query rows from ``table`` and optionally return them in a
-        beautified dict form.
+        """Query rows from ``table`` and optionally return them in a beautified form.
 
         Args:
             table (str): Table name.
@@ -431,8 +424,7 @@ class SQLQueryBoilerplates:
         return self.sanitize_functions.beautify_table(cast(List[str], data), resp_List)
 
     async def get_table_size(self, table: str, column: Union[str, List[str]], where: Union[str, List[str]] = "") -> int:
-        """
-        Return the number of rows matching the optional WHERE clause.
+        """Return the number of rows matching the optional WHERE clause.
 
         Args:
             table (str): Table name.
@@ -478,8 +470,7 @@ class SQLQueryBoilerplates:
         return resp_List[0][0]
 
     async def update_data_in_table(self, table: str, data: List[str], column: Union[List[str], str, None], where: Union[str, List[str]] = "") -> int:
-        """
-        Update rows in ``table`` matching ``where`` with values from ``data``.
+        """Update rows in ``table`` matching ``where`` with values from ``data``.
 
         Args:
             table (str): Table name.
@@ -545,8 +536,7 @@ class SQLQueryBoilerplates:
         return await self.sql_pool.run_editing_command(sql_query, table, "update")
 
     async def insert_or_update_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], columns: Union[List[str], None] = None) -> int:
-        """
-        Insert new rows or update existing rows for ``table``.
+        """Insert new rows or update existing rows for ``table``.
 
         This method determines column names if not provided and delegates
         to the appropriate INSERT/UPDATE boilerplate.

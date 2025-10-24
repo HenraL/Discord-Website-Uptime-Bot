@@ -1,12 +1,10 @@
-"""
-    EPITECH PROJECT, 2022
-    Desktop_pet (Workspace)
-    File description:
-    injection.py
+"""SQL injection detection helpers.
 
-    The file un charge of checking if an injection is attempted with the open database
+Provide the :class:`SQLInjection` helper used to detect likely SQL
+injection attempts before constructing SQL queries. The checks are
+conservative and return True when an injection-like pattern is
+detected.
 """
-
 import base64
 import binascii
 from typing import Union, List, Any, Callable
@@ -18,20 +16,22 @@ from ..program_globals.helpers import initialise_logger
 class SQLInjection:
     """Helpers to detect likely SQL injection attempts.
 
-    This class provides a set of defensive checks (symbol, keyword and
-    logic-gate detection) that are used across the project before constructing
-    SQL queries. The checks are conservative and return ``True`` when an
-    injection-like pattern is detected.
-
-    Attributes:
-        error (int): Numeric error code used by callers.
-        success (int): Numeric success code used by callers.
-        debug (bool): When True, additional debug output is emitted.
+    The class exposes small predicate helpers that scan strings (or
+    nested lists of strings) for symbols, keywords or logical operators
+    typically used in SQL injections. Callers should treat a ``True``
+    return value as an indication the input is potentially dangerous.
     """
 
     disp: Disp = initialise_logger(__qualname__, False)
 
     def __init__(self, error: int = 84, success: int = 0, debug: bool = False) -> None:
+        """Initialize the SQLInjection helper.
+
+        Args:
+            error (int): Numeric error code returned by helper predicates.
+            success (int): Numeric success code (unused by predicates).
+            debug (bool): Enable debug logging when True.
+        """
         # ---------------------------- Status codes ----------------------------
         self.debug: bool = debug
         self.error: int = error

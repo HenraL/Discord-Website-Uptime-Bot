@@ -1,9 +1,7 @@
-"""
-    Async SQL connection manager using aiosqlite.
+"""Async SQL connection manager using aiosqlite.
 
-    This module replaces the previous synchronous sqlite3-based manager with
-    an async-friendly implementation using aiosqlite. Public methods that
-    perform I/O are asynchronous (async def).
+Provides an async-friendly connection manager and helper utilities for
+sqlite using :mod:`aiosqlite`.
 """
 
 from typing import Union, Any, Optional
@@ -23,21 +21,9 @@ from . import sql_constants as SCONST
 class SQLManageConnections:
     """Async connection manager for sqlite using aiosqlite.
 
-    This class provides a small, async-friendly facade around a single
-    :class:`aiosqlite.Connection` instance. It serializes access with an
-    :class:`asyncio.Lock` so that multiple asyncio tasks do not attempt to
-    use the same connection/cursor concurrently.
-
-    Behaviour / contract:
-    - Call :meth:`initialise_pool` once at startup to open the sqlite file.
-    - Use :meth:`get_connection` / :meth:`get_cursor` to obtain resources.
-    - Prefer the convenience methods :meth:`run_and_fetch_all` and :meth:`run_editing_command` for simple queries.
-    - Public I/O methods are asynchronous and must be awaited.
-
-    Attributes:
-        connection (Optional[aiosqlite.Connection]): The active aiosqlite
-            connection or ``None`` if not initialised.
-        _lock (asyncio.Lock): Lock used to serialize connection/cursor use.
+    Provides a small, async-friendly facade around an
+    :class:`aiosqlite.Connection` instance. Access is serialized using an
+    :class:`asyncio.Lock` to avoid concurrent cursor use.
     """
 
     # Initialise the logger globally in the class.
@@ -54,6 +40,18 @@ class SQLManageConnections:
         error: int = 84,
         debug: bool = False,
     ) -> None:
+        """Initialise the connection manager instance.
+
+        Args:
+            url (str): Host/url string (for sqlite this forms the path base).
+            port (int): Port number (kept for interface compatibility).
+            username (str): Username (unused for sqlite but part of signature).
+            password (str): Password (unused for sqlite but part of signature).
+            db_name (str): SQLite database filename.
+            success (int, optional): Success return code. Default: 0.
+            error (int, optional): Error return code. Default: 84.
+            debug (bool, optional): Enable debug logging. Default: False.
+        """
         self.error: int = error
         self.debug: bool = debug
         self.success: int = success
@@ -561,8 +559,7 @@ class SQLManageConnections:
                 raise RuntimeError(msg) from e
 
     async def run_editing_command(self, sql_query: str, table: str, action_type: str = "update") -> int:
-        """Convenience wrapper to run a modifying SQL command and handle
-        logging/return codes.
+        """Convenience wrapper to run a modifying SQL command and handle logging/return codes.
 
         Args:
             sql_query (str): SQL statement to execute.

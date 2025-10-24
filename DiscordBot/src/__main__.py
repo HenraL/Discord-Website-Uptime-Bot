@@ -1,4 +1,7 @@
-""" File in charge of allowing the users to start the program by calling the folder with python.
+"""Package entrypoint for the Discord bot application.
+
+Allows starting the program by calling the package directory with
+``python -m`` or by running this module directly.
 """
 import sys
 try:

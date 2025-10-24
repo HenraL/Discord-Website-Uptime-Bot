@@ -1,8 +1,10 @@
-"""
-File in charge of containing the interfacing between an sql library and the program.
-This contains functions that simplify the process of interacting with databases as well as check for injection attempts.
-"""
+"""SQL integration facade and helpers.
 
+High-level :class:`SQL` facade that simplifies async interaction with
+the database. The module exposes a class providing convenience async
+methods for common operations (create/drop tables, queries, inserts,
+etc.) while performing defensive sanitisation.
+"""
 from typing import Optional, Callable, Awaitable, Union, List, Dict, Tuple, Any
 
 from display_tty import Disp
@@ -14,53 +16,29 @@ from .sql_query_boilerplates import SQLQueryBoilerplates
 
 
 class SQL:
-    """
-    Manage database access and provide high-level query helpers.
+    """Manage database access and provide high-level query helpers.
 
     This class wraps a low-level connection manager and exposes convenience
-    async methods for common operations. The underlying connection pool is
-    asynchronous; therefore construction via ``SQL(...)`` only creates a
-    lightweight facade. Callers should use the async factory
-    ``await SQL.create(...)`` to obtain a fully-initialised instance.
-
-    Attributes:
-        disp (Disp): Logger instance used by the SQL helpers.
-        sql_manage_connections (Optional[SQLManageConnections]): The low-level
-            async connection manager.
-        sql_query_boilerplates (Optional[SQLQueryBoilerplates]): High-level
-            query helpers created after async init.
-        get_data_from_table (callable | None): Convenience async callable;
-            bound after initialisation.
+    async methods for common operations. Call :py:meth:`create` to build a
+    fully-initialised instance ready for async usage.
     """
 
     # Initialise the logger globally in the class.
     disp: Disp = initialise_logger(__qualname__, False)
 
     def __init__(self, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False):
-        """
-        Create a lightweight SQL facade instance.
+        """Create a lightweight SQL facade instance.
 
-        The synchronous constructor initialises the facade and lightweight
-        helpers that do not require an active async connection. The actual
-        async connection pool is created by :py:meth:`create`.
-
-        Args:
-            url (str): DB host or file path (for sqlite this is a filename).
-            port (int): DB port (unused for sqlite but retained for API compatibility).
-            username (str): DB username (unused for sqlite).
-            password (str): DB password (unused for sqlite).
-            db_name (str): Database name or sqlite filename.
-            success (int, optional): numeric success code used across the
-                sql helpers. Defaults to 0.
-            error (int, optional): numeric error code used across the sql
-                helpers. Defaults to 84.
-            debug (bool, optional): enable debug logging. Defaults to False.
-
-        Note:
-            For sqlite usage, ``port``, ``username`` and ``password`` are
-            typically unused; they are present for backwards compatibility.
+        The constructor initialises the facade and helpers that do not
+        require an active async connection. Use :py:meth:`create` to
+        complete async initialization.
         """
         async def _uninitialized(*args, **kwargs):
+            """Placeholder async callable used before the instance is fully initialised.
+
+            Raises a RuntimeError if called; bound to instance methods until
+            the async factory completes initialisation.
+            """
             raise RuntimeError("SQLQueryBoilerplates method not initialized")
         self.debug: bool = debug
         self.success: int = success
@@ -172,8 +150,11 @@ class SQL:
         self.drop_table = _uninitialized
 
     def __del__(self) -> None:
-        """
-            Disconnect the database when the class is destroyed
+        """Best-effort cleanup invoked when the instance is garbage-collected.
+
+        This releases references to internal helpers so external resources
+        can be freed by the event loop later. Avoid awaiting inside
+        destructors.
         """
         if self.sql_manage_connections is not None:
             del self.sql_manage_connections
@@ -187,8 +168,7 @@ class SQL:
 
     @classmethod
     async def create(cls, url: str, port: int, username: str, password: str, db_name: str, success: int = 0, error: int = 84, debug: bool = False):
-        """
-        Async factory to create and initialise an SQL instance.
+        """Async factory to create and initialise an SQL instance.
 
         This factory completes asynchronous initialisation steps that the
         synchronous constructor cannot perform (notably the connection

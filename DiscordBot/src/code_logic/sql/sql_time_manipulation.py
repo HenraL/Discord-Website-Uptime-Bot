@@ -1,7 +1,8 @@
-"""
-    File in charge of containing the functions that allow for time conversion between datetime and strings.
-"""
+"""Date/time conversion helpers used by SQL modules.
 
+Utilities to convert between :class:`datetime` instances and the
+project's string formats used when storing timestamps in the database.
+"""
 from datetime import datetime
 
 from display_tty import Disp
