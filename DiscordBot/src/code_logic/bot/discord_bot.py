@@ -255,8 +255,9 @@ class DiscordBot:
                     "Failed to update message, skipping update"
                 )
                 continue
+            response = await self._get_channel_name(message)
             self.disp.log_info(
-                f"Website status '({message.message_human})' updated message ('{message.message_id}') on channel '{self._get_channel_name(message)}'."
+                f"Website status '({message.message_human})' updated message ('{message.message_id}') on channel '{response}'."
             )
             continue
 
