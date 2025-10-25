@@ -18,6 +18,8 @@ AUTHOR: str = "(c) Henry Letellier"
 CWD: str = os.path.abspath(str(Path(__file__).parent.parent.parent.parent))
 # default value for the case sensitivity check option.
 DEFAULT_CASE_SENSITIVITY: bool = False
+# This corresponds to the number of characters from the website request that are shown in the log, set to -1 for all.
+RESPONSE_LOG_SIZE: int = 500
 
 # Database info
 DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))

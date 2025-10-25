@@ -185,7 +185,8 @@ class DiscordBot:
                 channel = await self.discord_client.fetch_channel(channel_id)
             except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
                 self.disp.log_error(
-                    f"Failed to fetch channel {channel_id}: {e}")
+                    f"Failed to fetch channel {channel_id}: {e}"
+                )
                 return ERROR
 
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
@@ -198,14 +199,17 @@ class DiscordBot:
             msg = await channel.fetch_message(message_id)
             await msg.edit(content=discord_message.message_human)
             self.disp.log_debug(
-                f"Updated message (id={message_id}) in channel '{channel_id}' with new content.")
+                f"Updated message (id={message_id}) in channel '{channel_id}' with new content."
+            )
             return SUCCESS
         except discord.NotFound:
             self.disp.log_warning(
-                f"Message {message_id} not found in channel {channel_id}. It might have been deleted.")
+                f"Message {message_id} not found in channel {channel_id}. It might have been deleted."
+            )
         except discord.Forbidden:
             self.disp.log_error(
-                f"Missing permissions to edit message {message_id} in channel {channel_id}.")
+                f"Missing permissions to edit message {message_id} in channel {channel_id}."
+            )
         except discord.HTTPException as e:
             self.disp.log_error(f"Failed to edit message {message_id}: {e}")
         return ERROR
@@ -239,8 +243,9 @@ class DiscordBot:
                         f"Failed to update the website's '(id: {message.website_id})' message_id '({message.message_id})' in the database."
                     )
                     continue
+                channel_name: str = await self._get_channel_name(message)
                 self.disp.log_info(
-                    f"Website status '({message.message_human})' sent to channel '{self._get_channel_name(message)}'."
+                    f"Website status '({message.message_human})' sent to channel '{channel_name}'."
                 )
                 continue
             # A message exists, updating it
@@ -262,7 +267,7 @@ class DiscordBot:
             await self._refresh_message_statuses()
         return loop
 
-    async def run(self, interval_seconds: int = 60) -> None:
+    async def run(self, interval_seconds: int = 30) -> None:
         """Start the Discord bot and its update loop."""
         if not self.discord_client:
             self.initialise()

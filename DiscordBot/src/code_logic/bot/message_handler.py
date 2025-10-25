@@ -70,13 +70,13 @@ class MessageHandler:
 
     def _make_human_readable(self, url: str, status: CONST.WebsiteStatus) -> str:
         cleaned_url: str = self._clean_url(url)
-        if status == CONST.UP:
+        if status == CONST.WS.UP:
             return f":green_circle: Website '({cleaned_url})' is UP and Operational"
-        if status == CONST.PARTIALLY_UP:
+        if status == CONST.WS.PARTIALLY_UP:
             return f":yellow_circle: Website '({cleaned_url})' is UP but NOT Operational"
-        if status == CONST.DOWN:
+        if status == CONST.WS.DOWN:
             return f":red_circle: Website '({cleaned_url})' is DOWN"
-        return f":purple_circle: Website '({cleaned_url})' has an unhandled status '({status})'"
+        return f":purple_circle: Website '({cleaned_url})' has an unhandled status '({status.value})'"
 
     def _check_if_keyword_in_content(self, needle: str, haystack: str, case_sensitive: bool = False) -> bool:
         self.disp.log_debug(f"Case sensitive: {case_sensitive}")
@@ -89,7 +89,7 @@ class MessageHandler:
             haystack_cleaned = haystack_cleaned.lower()
         haystack_cleaned = haystack_cleaned.strip()
         self.disp.log_debug(
-            f"1rst 500 characters of the normalized haystack: '{haystack_cleaned[:500]}'"
+            f"1rst {CONST.RESPONSE_LOG_SIZE} characters of the normalized haystack: '{haystack_cleaned[:CONST.RESPONSE_LOG_SIZE]}'"
         )
         found: bool = needle_cleaned in haystack_cleaned
         self.disp.log_debug(f"Needle found: {found}")
@@ -100,9 +100,13 @@ class MessageHandler:
         website_response_lower: str = ""
         _tmp_response: str = ""
         _tmp_dead_check: str = ""
+        self.disp.log_debug(f"request={request}")
+        self.disp.log_debug(f"default={default}")
+        self.disp.log_debug(f"dead_checks={dead_checks}")
         for check in dead_checks:
             _tmp_response = ""
             _tmp_dead_check = ""
+            self.disp.log_debug(f"check={check}")
             if check.case_sensitive is False:
                 if website_response_lower == "":
                     website_response_lower = website_response.lower()
@@ -111,8 +115,18 @@ class MessageHandler:
             else:
                 _tmp_response = website_response
                 _tmp_dead_check = check.keyword
+            self.disp.log_debug(
+                f"_tmp_response[:{CONST.RESPONSE_LOG_SIZE}]='{_tmp_response[:CONST.RESPONSE_LOG_SIZE]}'"
+            )
+            self.disp.log_debug(f"_tmp_dead_check='{_tmp_dead_check}'")
             if self._check_if_keyword_in_content(_tmp_dead_check, _tmp_response, True):
+                self.disp.log_debug(
+                    f"Keyword '{_tmp_dead_check}' located in response"
+                )
                 return check.response
+        self.disp.log_debug(
+            f"no dead check found, returning default '{default.name}'"
+        )
         return default
 
     def _check_website_status_and_content(self, website: CONST.WebsiteNode, dead_checks: List[CONST.DeadCheck]) -> CONST.WebsiteStatus:
@@ -587,7 +601,7 @@ class MessageHandler:
             return CONST.SUCCESS
         except RuntimeError as e:
             self.disp.log_warning(
-                "Database connection not initialised, initialising with the 'create' function"
+                f"Database connection not initialised, initialising with the 'create' function, error: {e}"
             )
             try:
                 _url = self.connection.url
@@ -619,17 +633,17 @@ class MessageHandler:
                     )
                     self.connection = _conn_tmp
                     self.disp.log_info(
-                        f"Database connection initialisation success."
+                        "Database connection initialisation success."
                     )
                     return CONST.SUCCESS
-                except RuntimeError as e:
+                except RuntimeError as err:
                     self.disp.log_error(
-                        f"Database connection initialisation failed: '{e}'"
+                        f"Database connection initialisation failed: '{err}'"
                     )
                     return CONST.ERROR
-            except RuntimeError as e:
+            except RuntimeError as r_err:
                 self.disp.log_error(
-                    f"Database connection initialisation failed: '{e}'"
+                    f"Database connection initialisation failed: '{r_err}'"
                 )
                 return CONST.ERROR
 
@@ -699,7 +713,7 @@ class MessageHandler:
         Returns:
             int: _description_
         """
-        if not discord_message.website_id or not discord_message.message_channel or not discord_message.message_id:
+        if not discord_message.website_id or not discord_message.message_channel:
             self.disp.log_warning(
                 "Received corrupted or invalid DiscordMessage dataclass, skipping"
             )
@@ -760,7 +774,8 @@ class MessageHandler:
             _tmp: Union[int, CONST.DiscordMessage] = await self._build_discord_message(site)
             if not isinstance(_tmp, CONST.DiscordMessage):
                 self.disp.log_warning(
-                    f"Failed to check '({site.url})', skipping update")
+                    f"Failed to check '({site.url})', skipping update"
+                )
                 continue
             run_status.append(_tmp)
         return run_status
