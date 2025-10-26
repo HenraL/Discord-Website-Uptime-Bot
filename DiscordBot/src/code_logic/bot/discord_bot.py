@@ -78,6 +78,7 @@ class DiscordBot:
         self.discord_intents = discord.Intents.default()
         self.discord_intents.messages = True
         self.discord_intents.guilds = True
+        self.discord_intents.message_content = True
         if self.discord_intents is not None:
             self.discord_client = discord.Client(
                 intents=self.discord_intents
@@ -238,6 +239,17 @@ class DiscordBot:
         for i in DISCORD_PERMISSIONS_EXPLANATION:
             self.disp.log_error(f"{i}")
 
+    def _log_retrying_message(self) -> None:
+        self.disp.log_warning("Attempt failed, retrying once...")
+
+    def _log_abandoning_message(self, err: Optional[str] = None) -> None:
+        self.disp.log_error(
+            "Well, something is definitely wrong, because it failed on the second time to, abandoning."
+        )
+        if err:
+            self.disp.log_error(f"Second attempt error: {str(err)}")
+        self._log_permissions_message()
+
     def _get_correct_prepended_embedding_message(self, discord_message: DiscordMessage) -> Union[str, None]:
         final_message: Union[str, None] = None
         if DISCORD_EMBEDING_MESSAGE == "":
@@ -250,6 +262,71 @@ class DiscordBot:
             self.disp.log_debug(f"Prepending message: {final_message}")
         return final_message
 
+    async def _get_channel_connection(self, channel_id: int, recall: bool = True) -> Union[None, discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel]:
+        if not self.discord_client:
+            self.disp.log_error("Discord client not initialized.")
+            return None
+
+        channel = self.discord_client.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await self.discord_client.fetch_channel(channel_id)
+            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
+                self.disp.log_error(
+                    f"Failed to fetch channel {channel_id}: {e}"
+                )
+                if recall:
+                    self._log_retrying_message()
+                    return await self._get_channel_connection(channel_id, recall=False)
+                self._log_abandoning_message(str(e))
+                return None
+        return channel
+
+    async def _get_discord_message(self, channel_id: int, message_id: int, recall: bool = True) -> Union[None, discord.Message]:
+        if not self.discord_client:
+            self.disp.log_error("Discord client not initialized.")
+            return None
+
+        channel: Union[None, discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel] = await self._get_channel_connection(channel_id)
+        if not channel:
+            self.disp.log_error(
+                f"Failed to obtain an instance of channel: {channel_id}"
+            )
+            return None
+
+        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            self.disp.log_error(
+                "Channel is not a TextChannel or Thread. Cannot send messages."
+            )
+            return None
+
+        try:
+            msg = await channel.fetch_message(message_id)
+            self.disp.log_debug(f"Gathered message: {msg}")
+            return msg
+        except discord.NotFound as e:
+            self.disp.log_warning(
+                f"Message {message_id} not found in channel {channel_id}. It might have been deleted."
+            )
+            if recall:
+                self._log_retrying_message()
+                return await self._get_discord_message(channel_id, message_id, recall=False)
+            self._log_abandoning_message(str(e))
+            return None
+        except discord.Forbidden:
+            self.disp.log_error(
+                f"Missing permissions to edit message {message_id} in channel {channel_id}."
+            )
+            self._log_permissions_message()
+            return None
+        except discord.HTTPException as e:
+            self.disp.log_error(f"Failed to edit message {message_id}: {e}")
+            if recall:
+                self._log_retrying_message()
+                return await self._get_discord_message(channel_id, message_id, recall=False)
+            self._log_abandoning_message(str(e))
+            return None
+
     async def _send_message(self, discord_message: DiscordMessage, recall: bool = True) -> int:
         """Send a message to a Discord channel and store its message ID."""
         if not self.discord_client:
@@ -261,15 +338,10 @@ class DiscordBot:
             self.disp.log_error("Discord message missing channel ID.")
             return ERROR
 
-        channel = self.discord_client.get_channel(channel_id)
+        channel: Union[discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel, None] = await self._get_channel_connection(channel_id)
         if channel is None:
-            try:
-                channel = await self.discord_client.fetch_channel(channel_id)
-            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
-                self.disp.log_error(
-                    f"Failed to fetch channel {channel_id}: {e}"
-                )
-                return ERROR
+            self.disp.log_error(f"Failed to fetch channel {channel_id}")
+            return ERROR
 
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
             self.disp.log_error(
@@ -311,11 +383,12 @@ class DiscordBot:
                 f"Failed to send message in channel {channel_id}: {e}"
             )
             if recall:
-                self.disp.log_warning("Attempt failed, retrying once...")
+                self._log_retrying_message()
                 return await self._send_message(
                     discord_message,
                     recall=False
                 )
+            self._log_abandoning_message(str(e))
         return ERROR
 
     async def _update_message(self, discord_message: DiscordMessage, recall: bool = True) -> int:
@@ -333,37 +406,25 @@ class DiscordBot:
             )
             return ERROR
 
-        channel = self.discord_client.get_channel(channel_id)
-        if channel is None:
-            try:
-                channel = await self.discord_client.fetch_channel(channel_id)
-            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
-                self.disp.log_error(
-                    f"Failed to fetch channel {channel_id}: {e}"
-                )
-                return ERROR
-
-        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
-            self.disp.log_error(
-                "Channel is not a TextChannel or Thread. Cannot send messages."
-            )
+        message: Union[discord.Message, None] = await self._get_discord_message(channel_id, message_id)
+        if message is None:
+            self.disp.log_error(f"Failed to fetch channel {channel_id}")
             return ERROR
 
         try:
-            msg = await channel.fetch_message(message_id)
             if self.output_mode == OutputMode.EMBED:
                 embed: Embed = self._get_embed_message(discord_message)
                 self.disp.log_debug(f"embed message: {embed}")
                 final_message: Union[str, None] = self._get_correct_prepended_embedding_message(
                     discord_message
                 )
-                updated_msg = await msg.edit(content=final_message, embed=embed)
+                updated_msg = await message.edit(content=final_message, embed=embed)
                 self.disp.log_debug(
                     f"Updated message content: {updated_msg.content}"
                 )
                 self.disp.log_debug(f"Updated embeds: {updated_msg.embeds}")
             else:
-                updated_msg = await msg.edit(content=str(discord_message.message_human), embed=None)
+                updated_msg = await message.edit(content=str(discord_message.message_human), embed=None)
                 self.disp.log_debug(
                     f"Updated message content: {updated_msg.content}"
                 )
@@ -387,13 +448,17 @@ class DiscordBot:
         except discord.HTTPException as e:
             self.disp.log_error(f"Failed to edit message {message_id}: {e}")
             if recall:
-                self.disp.warning_message(
-                    "Could have been a fluke, attempting edits one more time...")
+                self._log_retrying_message()
                 return await self._update_message(discord_message, recall=False)
+            self._log_abandoning_message(str(e))
         except TypeError as e:
             self.disp.log_error(
                 f"A type error occurred, message edit failed, {message_id}: {e}"
             )
+            if recall:
+                self._log_retrying_message()
+                return await self._update_message(discord_message, recall=False)
+            self._log_abandoning_message(str(e))
         return ERROR
 
     async def _check_message_presence(self, channel_id: Optional[int], message_id: Optional[int]) -> bool:
@@ -408,41 +473,14 @@ class DiscordBot:
             )
             return False
 
-        channel = self.discord_client.get_channel(channel_id)
-        if channel is None:
-            try:
-                channel = await self.discord_client.fetch_channel(channel_id)
-            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
-                self.disp.log_error(
-                    f"Failed to fetch channel {channel_id}: {e}"
-                )
-                return False
-
-        if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+        message: Union[discord.Message, None] = await self._get_discord_message(channel_id, message_id)
+        if not message:
             self.disp.log_error(
-                "Channel is not a TextChannel or Thread. Cannot send messages."
+                "Attempting to retrieve the message failed, presuming that it does not exist."
             )
             return False
-
-        try:
-            msg = await channel.fetch_message(message_id)
-            self.disp.log_debug(f"Message exists: {msg}")
-            return True
-        except discord.NotFound:
-            self.disp.log_warning(
-                f"Message {message_id} not found in channel {channel_id}. It might have been deleted."
-            )
-        except discord.Forbidden:
-            self.disp.log_error(
-                f"Missing permissions to edit message {message_id} in channel {channel_id}."
-            )
-        except discord.HTTPException as e:
-            self.disp.log_error(f"Failed to edit message {message_id}: {e}")
-        except TypeError as e:
-            self.disp.log_error(
-                f"A type error occurred, message edit failed, {message_id}: {e}"
-            )
-        return False
+        self.disp.log_debug(f"Message exists: {message}")
+        return True
 
     async def _send_process(self, message: DiscordMessage, recall: bool = True) -> int:
         if not self.message_handler:

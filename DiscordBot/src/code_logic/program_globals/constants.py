@@ -44,7 +44,7 @@ DISCORD_MESSAGE_BEGIN_FOOTER: str = "==== Begin Footer ====" + DISCORD_MESSAGE_N
 DISCORD_MESSAGE_END_FOOTER: str = "==== End Footer ====" + DISCORD_MESSAGE_NEWLINE
 
 # Prepend a message to every embedding (use a blank string to use the embedding's description (website + status), use None to disable it)
-DISCORD_EMBEDING_MESSAGE: Optional[str] = ""
+DISCORD_EMBEDING_MESSAGE: Optional[str] = None  # ""
 
 # Output mode
 
