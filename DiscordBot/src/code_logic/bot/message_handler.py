@@ -5,7 +5,11 @@ monitored websites, ensures required database tables exist, and exposes
 helpers to check website status and content.
 """
 
-from typing import List, Tuple, Dict, Any, Optional, Union, cast, overload
+from typing import List, Tuple, Dict, Any, Optional, Union, Iterable, cast, overload
+
+from datetime import datetime, timedelta, date, timezone
+
+from collections import defaultdict
 
 import re
 import requests
@@ -28,7 +32,7 @@ class MessageHandler:
 
     disp: Disp = initialise_logger(__qualname__, False)
 
-    def __init__(self, sql_connection: SQL, message_schema: List[Any], debug: bool = False) -> None:
+    def __init__(self, sql_connection: SQL, message_schema: List[Any], output_mode: Optional[CONST.OutputMode] = None, debug: bool = False) -> None:
         """Initialize the MessageHandler.
 
         Args:
@@ -36,13 +40,28 @@ class MessageHandler:
             message_schema (List[Any]): Raw JSON schema describing websites.
             debug (bool): Enable debug logging.
         """
-        self.boot_called: bool = False
         self.debug: bool = debug
+        self.boot_called: bool = False
+        self.output_mode: CONST.OutputMode = CONST.OutputMode.RAW
+        self.set_output_type(output_mode)
         self.connection: SQL = sql_connection
         self.message_schema: List[Any] = message_schema
         self.processed_json: List[CONST.WebsiteNode] = []
         self.cleaned_urls: Dict[str, str] = {}
         self.disp.update_disp_debug(self.debug)
+
+    def set_output_type(self, mode: Optional[CONST.OutputMode]) -> None:
+        if not mode or mode not in CONST.OutputMode:
+            self.output_mode = CONST.OM.RAW
+            self.disp.log_warning(
+                f"The provided mode is unknown, defaulting to {str(self.output_mode)}"
+            )
+            return
+        self.disp.log_info(f"Output mode set to {mode.name}")
+        self.output_mode = mode
+
+    def get_output_mode(self) -> CONST.OutputMode:
+        return self.output_mode
 
     def _clean_url(self, raw_url: str) -> str:
         self.disp.log_debug(
@@ -68,15 +87,334 @@ class MessageHandler:
         self.disp.log_debug("Processed url added to cache.")
         return final_url
 
-    def _make_human_readable(self, url: str, status: CONST.WebsiteStatus) -> str:
+    def _get_last_update_human_date(self) -> Union[str, Tuple[str, str]]:
+        _current_date = self.connection.get_correct_now_value()
+        self.disp.log_debug(f"Current date: {_current_date}")
+        if self.output_mode == CONST.OM.MARKDOWN:
+            _final = f"**Last updated**: {_current_date}"
+        elif self.output_mode == CONST.OM.EMBED:
+            return ("Last updated", f"{_current_date}")
+        else:
+            _final = f"Last updated: {_current_date}"
+        return _final
+
+    def _get_desired_timeframes(self) -> Dict[str, date]:
+        _now = datetime.now(timezone.utc).date()
+        ranges = {
+            CONST.TIMEFRAME_DAY: _now - timedelta(days=1),
+            CONST.TIMEFRAME_WEEK: _now - timedelta(weeks=1),
+            CONST.TIMEFRAME_MONTH: _now - timedelta(days=30),
+            CONST.TIMEFRAME_YEAR: _now - timedelta(days=365),
+        }
+        return ranges
+
+    def _initialised_desired_frames(self) -> Dict[str, defaultdict]:
+        counters = {
+            CONST.TIMEFRAME_DAY: defaultdict(int),
+            CONST.TIMEFRAME_WEEK: defaultdict(int),
+            CONST.TIMEFRAME_MONTH: defaultdict(int),
+            CONST.TIMEFRAME_YEAR: defaultdict(int),
+        }
+        return counters
+
+    def _format_timeframes(self, counter: defaultdict, name: str) -> Union[str, Tuple[str, str]]:
+        up = counter.get(CONST.UP, 0)
+        down = counter.get(CONST.DOWN, 0)
+        partial = counter.get(CONST.PARTIALLY_UP, 0)
+        unknown = sum(counter.values()) - (up + down + partial)
+        _emoji: str = CONST.TIMEFRAME_EMOJIS[name]
+        if self.output_mode == CONST.OM.MARKDOWN:
+            final_string: str = f"> {_emoji} **{name.title()}**: {CONST.UP_EMOJI} {up} | {CONST.PARTIALLY_UP_EMOJI} {partial} | {CONST.DOWN_EMOJI} {down} | {CONST.UNKNOWN_STATUS_EMOJI} {unknown}"
+        elif self.output_mode == CONST.OM.EMBED:
+            resp: Tuple[str, str] = (
+                f"{_emoji} {name.title()}",
+                f"{CONST.UP_EMOJI} {up} | {CONST.PARTIALLY_UP_EMOJI} {partial} | {CONST.DOWN_EMOJI} {down} | {CONST.UNKNOWN_STATUS_EMOJI} {unknown}"
+            )
+            return resp
+        else:
+            final_string: str = f"{_emoji} {name.title()}: {CONST.UP_EMOJI} {up} | {CONST.PARTIALLY_UP_EMOJI} {partial} | {CONST.DOWN_EMOJI} {down} | {CONST.UNKNOWN_STATUS_EMOJI} {unknown}"
+        return final_string
+
+    def _get_latest_checks_per_day(self, data: List[Dict[str, Any]]) -> Dict[date, Dict[str, Any]]:
+        daily_latest: Dict[date, Dict[str, Any]] = {}
+        for check in data:
+            try:
+                check_time = self.connection.string_to_datetime(
+                    datetime_string_instance=check[CONST.SQLITE_STATUS_TIMESTAMP_NAME],
+                    date_only=False
+                )
+            except (RuntimeError, ValueError) as e:
+                self.disp.log_error(f"Failed to parse datetime: {e}")
+                continue
+
+            check_date = check_time.date()
+            if check_date not in daily_latest or check_time > daily_latest[check_date][f"{CONST.SQLITE_STATUS_TIMESTAMP_NAME}"]:
+                daily_latest[check_date] = {
+                    f"{CONST.SQLITE_STATUS_STATUS_NAME}": check[CONST.SQLITE_STATUS_STATUS_NAME],
+                    f"{CONST.SQLITE_STATUS_TIMESTAMP_NAME}": check_time
+                }
+        self.disp.log_debug(f"Aggregated daily data: {daily_latest}")
+        return daily_latest
+
+    def _compile_website_data(self, data: List[Dict[str, Any]]) -> Union[str, List[Tuple[str, str]]]:
+        _data_cleaned: Dict[
+            date, Dict[str, Any]
+        ] = self._get_latest_checks_per_day(data)
+        _timeframes: Dict[str, date] = self._get_desired_timeframes()
+        _desired_frames: Dict[
+            str,
+            defaultdict
+        ] = self._initialised_desired_frames()
+        for day, info in _data_cleaned.items():
+            status: str = info[CONST.SQLITE_STATUS_STATUS_NAME]
+            if day >= _timeframes[str(CONST.TIMEFRAME_DAY)]:
+                _desired_frames[str(CONST.TIMEFRAME_DAY)][status] += 1
+            if day >= _timeframes[str(CONST.TIMEFRAME_WEEK)]:
+                _desired_frames[str(CONST.TIMEFRAME_WEEK)][status] += 1
+            if day >= _timeframes[str(CONST.TIMEFRAME_MONTH)]:
+                _desired_frames[str(CONST.TIMEFRAME_MONTH)][status] += 1
+            if day >= _timeframes[str(CONST.TIMEFRAME_YEAR)]:
+                _desired_frames[str(CONST.TIMEFRAME_YEAR)][status] += 1
+
+        _uptime_summary_string: str = ""
+        _uptime_summary_tuple: Tuple[str, str] = ("", "")
+        if self.output_mode == CONST.OM.EMBED:
+            _uptime_summary_tuple = ("Uptime Summary", "")
+        elif self.output_mode == CONST.OM.MARKDOWN:
+            _uptime_summary_string = "**Uptime Summary**"
+        else:
+            _uptime_summary_string = "Uptime Summary"
+
+        _timeframe_day: Union[str, Tuple[str, str]] = self._format_timeframes(
+            _desired_frames[str(CONST.TIMEFRAME_DAY)],
+            str(CONST.TIMEFRAME_DAY)
+        )
+        _timeframe_week: Union[str, Tuple[str, str]] = self._format_timeframes(
+            _desired_frames[str(CONST.TIMEFRAME_WEEK)],
+            str(CONST.TIMEFRAME_WEEK)
+        )
+        _timeframe_month: Union[str, Tuple[str, str]] = self._format_timeframes(
+            _desired_frames[str(CONST.TIMEFRAME_MONTH)],
+            str(CONST.TIMEFRAME_MONTH)
+        )
+        _timeframe_year: Union[str, Tuple[str, str]] = self._format_timeframes(
+            _desired_frames[str(CONST.TIMEFRAME_YEAR)],
+            str(CONST.TIMEFRAME_YEAR)
+        )
+
+        if self.output_mode == CONST.OM.EMBED:
+            final_data = [
+                _uptime_summary_tuple,
+                _timeframe_day,
+                _timeframe_week,
+                _timeframe_month,
+                _timeframe_year
+            ]
+            return final_data
+        final_data = [
+            _uptime_summary_string,
+            _timeframe_day,
+            _timeframe_week,
+            _timeframe_month,
+            _timeframe_year
+        ]
+        return CONST.DISCORD_MESSAGE_NEWLINE.join(final_data)
+
+    async def _get_website_data(self, website_id: int) -> Union[str, List[Tuple[str, str]]]:
+        if self.output_mode == CONST.OM.MARKDOWN:
+            _error_message: Union[
+                str, List[Tuple[str, str]]
+            ] = "**<status history unavailable>**"
+        elif self.output_mode == CONST.OM.EMBED:
+            _error_message: Union[
+                str, List[Tuple[str, str]]
+            ] = [
+                (
+                    "Status history",
+                    "unavailable"
+                )
+            ]
+        else:
+            _error_message: Union[
+                str, List[Tuple[str, str]]
+            ] = "<status history unavailable>"
+        _table_of_interest: str = CONST.SQLITE_TABLE_NAME_STATUS_HISTORY
+        _sql_table_columns: Union[List[str], int] = await self.connection.get_table_column_names(_table_of_interest)
+        if isinstance(_sql_table_columns, int):
+            self.disp.log_error(
+                f"Failed to gather table data, table: {_table_of_interest}, error: {_sql_table_columns}"
+            )
+            return _error_message
+        self.disp.log_debug(f"Gathered table names: {_sql_table_columns}")
+        _sql_query: Union[int, List[Dict[str, Any]]] = await self.connection.get_data_from_table(
+            _table_of_interest,
+            _sql_table_columns,
+            where=f"{CONST.SQLITE_STATUS_MESSAGE_ID_NAME}='{website_id}'",
+            beautify=True
+        )
+        if isinstance(_sql_query, int):
+            self.disp.log_error(
+                f"Failed to gather table data, table: {_table_of_interest}, error: {_sql_query}"
+            )
+            return _error_message
+        self.disp.log_debug(f"Table data: {_sql_query}")
+        if self.output_mode == CONST.OM.MARKDOWN:
+            _legend: Union[str, List[Tuple[str, str]]] = "**Legend**"
+            _legend_end: Union[
+                str, List[Tuple[str, str]]
+            ] = f"{CONST.UP_EMOJI} = {CONST.UP} | {CONST.PARTIALLY_UP_EMOJI} = {CONST.PARTIALLY_UP} | {CONST.DOWN_EMOJI} = {CONST.DOWN} | {CONST.UNKNOWN_STATUS_EMOJI} = {CONST.UNKNOWN_STATUS}"
+        elif self.output_mode == CONST.OM.EMBED:
+            _legend: Union[str, List[Tuple[str, str]]] = [("Legend", "")]
+            _legend_end: Union[
+                str, List[Tuple[str, str]]
+            ] = [
+                (f"{CONST.UP_EMOJI}", f"{CONST.UP}"),
+                (f"{CONST.PARTIALLY_UP_EMOJI}", f"{CONST.PARTIALLY_UP}"),
+                (f"{CONST.DOWN_EMOJI}", f"{CONST.DOWN}"),
+                (f"{CONST.UNKNOWN_STATUS_EMOJI}", f"{CONST.UNKNOWN_STATUS}")
+            ]
+        else:
+            _legend: Union[str, List[Tuple[str, str]]] = "Legend"
+            _legend_end: Union[
+                str, List[Tuple[str, str]]
+            ] = f"{CONST.UP_EMOJI} = {CONST.UP} | {CONST.PARTIALLY_UP_EMOJI} = {CONST.PARTIALLY_UP} | {CONST.DOWN_EMOJI} = {CONST.DOWN} | {CONST.UNKNOWN_STATUS_EMOJI} = {CONST.UNKNOWN_STATUS}"
+        _compiled_data: Union[str, List[Tuple[str, str]]] = self._compile_website_data(
+            _sql_query
+        )
+        final_data = []
+        for item in [_legend, _legend_end, _compiled_data]:
+            if isinstance(item, List):
+                final_data.extend(cast(Iterable, item))
+            else:
+                final_data.append(item)
+        if self.output_mode == CONST.OM.EMBED:
+            return final_data
+        return CONST.DISCORD_MESSAGE_NEWLINE.join(final_data)
+
+    async def _get_meta_data(self, url: str) -> Union[str, List[Tuple[str, str]]]:
+        _last_updated: Union[
+            str,
+            Tuple[str, str]
+        ] = self._get_last_update_human_date()
+        _website_id: Optional[int] = await self._get_website_id(url)
+        if not _website_id:
+            self.disp.log_error(
+                f"Failed to get the reference id, error: {_website_id}"
+            )
+            if self.output_mode == CONST.OM.MARKDOWN:
+                return "**<no prior activity (or unaccessible)>**"
+            if self.output_mode == CONST.OM.EMBED:
+                return [("Activity", "none or unaccessible")]
+            return "<no prior activity (or unaccessible)>"
+        _extra_data: Union[str, List[Tuple[str, str]]] = await self._get_website_data(_website_id)
+        if self.output_mode == CONST.OM.MARKDOWN:
+            _padding: Union[
+                str, List[Tuple[str, str]]
+            ] = CONST.DISCORD_MESSAGE_NEWLINE
+        elif self.output_mode == CONST.OM.EMBED:
+            _padding: Union[str, List[Tuple[str, str]]] = [("", ""), ("", "")]
+        else:
+            _padding: Union[
+                str, List[Tuple[str, str]]
+            ] = CONST.DISCORD_MESSAGE_NEWLINE
+        final_meta_data = []
+        for item in [_last_updated, _padding, _extra_data]:
+            if isinstance(item, List):
+                final_meta_data.extend(cast(Iterable, item))
+            else:
+                final_meta_data.append(item)
+        if self.output_mode == CONST.OM.EMBED:
+            return final_meta_data
+        return CONST.DISCORD_MESSAGE_NEWLINE.join(final_meta_data)
+
+    def _make_raw_url_human_readable(self, raw_url: str) -> Union[str, Tuple[str, str]]:
+        if self.output_mode == CONST.OM.MARKDOWN:
+            return f"**Full url**: {raw_url}"
+        elif self.output_mode == CONST.OM.EMBED:
+            return ("Full url", f"{raw_url}")
+        else:
+            return f"Full url: {raw_url}"
+
+    async def _make_human_readable(self, url: str, status: CONST.WebsiteStatus) -> Union[str, List[Tuple[str, str]]]:
         cleaned_url: str = self._clean_url(url)
+        data: Union[str, List[Tuple[str, str]]] = await self._get_meta_data(url)
+        raw_url: Union[
+            str,
+            Tuple[str, str]
+        ] = self._make_raw_url_human_readable(url)
         if status == CONST.WS.UP:
-            return f":green_circle: Website '({cleaned_url})' is UP and Operational"
-        if status == CONST.WS.PARTIALLY_UP:
-            return f":yellow_circle: Website '({cleaned_url})' is UP but NOT Operational"
-        if status == CONST.WS.DOWN:
-            return f":red_circle: Website '({cleaned_url})' is DOWN"
-        return f":purple_circle: Website '({cleaned_url})' has an unhandled status '({status.value})'"
+            if self.output_mode == CONST.OM.MARKDOWN:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.UP_EMOJI} Website '({cleaned_url})' is **UP and Operational**"
+            elif self.output_mode == CONST.OM.EMBED:
+                status_string: Union[str, Tuple[str, str]] = (
+                    f"{CONST.UP_EMOJI} '({cleaned_url})'",
+                    "UP and Operational"
+                )
+            else:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.UP_EMOJI} Website '({cleaned_url})' is UP and Operational"
+        elif status == CONST.WS.PARTIALLY_UP:
+            if self.output_mode == CONST.OM.MARKDOWN:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.PARTIALLY_UP_EMOJI} Website '({cleaned_url})' is **UP but NOT Operational**"
+            elif self.output_mode == CONST.OM.EMBED:
+                status_string: Union[str, Tuple[str, str]] = (
+                    f"{CONST.PARTIALLY_UP_EMOJI} '({cleaned_url})'",
+                    "UP but NOT Operational"
+                )
+            else:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.PARTIALLY_UP_EMOJI} Website '({cleaned_url})' is UP but NOT Operational"
+        elif status == CONST.WS.DOWN:
+            if self.output_mode == CONST.OM.MARKDOWN:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.DOWN_EMOJI} Website '({cleaned_url})' is **DOWN**"
+            elif self.output_mode == CONST.OM.EMBED:
+                status_string: Union[str, Tuple[str, str]] = (
+                    f"{CONST.DOWN_EMOJI} '({cleaned_url})'",
+                    "DOWN"
+                )
+            else:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.DOWN_EMOJI} Website '({cleaned_url})' is DOWN"
+        else:
+            if self.output_mode == CONST.OM.MARKDOWN:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.UNKNOWN_STATUS_EMOJI} Website '({cleaned_url})' has an **UNHANDLED STATUS** '({status})'"
+            elif self.output_mode == CONST.OM.EMBED:
+                status_string: Union[str, Tuple[str, str]] = (
+                    f"{CONST.UNKNOWN_STATUS_EMOJI} '({cleaned_url})'",
+                    f"UNHANDLED STATUS '({status})'"
+                )
+            else:
+                status_string: Union[
+                    str,
+                    Tuple[str, str]
+                ] = f"{CONST.UNKNOWN_STATUS_EMOJI} Website '({cleaned_url})' has an UNHANDLED STATUS '({status})'"
+        final_string = []
+        for item in [status_string, raw_url, data]:
+            if isinstance(item, List):
+                final_string.extend(cast(Iterable, item))
+            else:
+                final_string.append(item)
+        if self.output_mode == CONST.OM.EMBED:
+            return final_string
+        return CONST.DISCORD_MESSAGE_NEWLINE.join(final_string)
 
     def _check_if_keyword_in_content(self, needle: str, haystack: str, case_sensitive: bool = False) -> bool:
         self.disp.log_debug(f"Case sensitive: {case_sensitive}")
@@ -559,7 +897,7 @@ class MessageHandler:
             str(status_check.status.value),
         ]
         self.disp.log_debug("Writing check to the database")
-        status: int = await self.connection.insert_or_update_data_into_table(
+        status: int = await self.connection.insert_data_into_table(
             dest_table,
             data,
             columns_cleaned
@@ -732,7 +1070,14 @@ class MessageHandler:
         self.disp.log_debug(f"Gathered data: {content}")
         if len(content) > 0:
             if isinstance(content[0], Tuple):
-                discord_message.message_id = content[0][0]
+                if isinstance(content[0][0], int):
+                    discord_message.message_id = content[0][0]
+                elif isinstance(content[0][0], str) and content[0][0].lower() == "null":
+                    discord_message.message_id = None
+                else:
+                    self.disp.log_error(
+                        f"Unknown or unsupported cell format, got: '{content[0][0]}' of type: '{type(content[0][0])}'"
+                    )
         self.disp.log_debug(f"Final message id: {discord_message.message_id}")
         return discord_message
 
@@ -743,10 +1088,12 @@ class MessageHandler:
         if isinstance(query_status, int):
             self.disp.log_error("Failed to check the website status.")
             return CONST.ERROR
-        _dm.message_human = self._make_human_readable(
+        _dm.status = query_status.status
+        _dm.message_human = await self._make_human_readable(
             website_node.url,
             query_status.status
         )
+        _dm.website_pretty_url = self._clean_url(website_node.url)
         _dm.website_id = query_status.website_id
         message_id: Union[int, CONST.DiscordMessage] = await self._get_message_id_from_database(_dm)
         if isinstance(message_id, int):

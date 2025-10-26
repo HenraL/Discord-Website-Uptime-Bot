@@ -130,6 +130,16 @@ EXPECTED_CONTENT=Some keyword or phrase
 
 ---
 
+## Gotchas
+
+Using the Embed mode (V2 version and above) but not seing your message, have you checked to make sure your agent has the following authorisations:
+
+- message sending
+- message editing
+- link embedding
+
+---
+
 ## Commit Message Convention
 
 This repository uses a simple, descriptive commit message style. See the [COMMIT_CONVENTION](./COMMIT_CONVENTION.md) file for details and examples.

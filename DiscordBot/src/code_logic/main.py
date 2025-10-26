@@ -30,13 +30,15 @@ class Main:
 
     disp: HLP.Disp = HLP.initialise_logger(__qualname__, False)
 
-    def __init__(self, debug: bool = False) -> None:
+    def __init__(self, delay: float = 60, output_mode: Optional[CONST.OutputMode] = None, debug: bool = False) -> None:
         """Create a Main controller instance.
 
         Args:
             debug (bool): Enable debug logging.
         """
         self.debug: bool = debug
+        self.delay: float = delay  # seconds
+        self.output_mode: Optional[CONST.OutputMode] = output_mode
         self.disp.update_disp_debug(self.debug)
         self.token: Optional[str] = None
         self.config_file: Optional[str] = None
@@ -75,6 +77,24 @@ class Main:
         """
         self.token = HLP.get_environement_variable(CONST.TOKEN_KEY)
         self.config_file = HLP.get_environement_variable(CONST.CONFIG_FILE_KEY)
+        if not self.output_mode:
+            try:
+                _output_mode: str = HLP.get_environement_variable(
+                    CONST.OUTPUT_MODE_KEY
+                ).lower()
+                if _output_mode == CONST.OUTPUT_RAW.lower():
+                    self.output_mode = CONST.OutputMode.RAW
+                elif _output_mode == CONST.OUTPUT_MARKDOWN.lower():
+                    self.output_mode = CONST.OutputMode.MARKDOWN
+                elif self.output_mode == CONST.OUTPUT_EMBED.lower():
+                    self.output_mode = CONST.OutputMode.EMBED
+                else:
+                    raise ValueError(f"Unknown output mode: '{_output_mode}'")
+            except ValueError as e:
+                self.disp.log_debug(
+                    f"No output mode provided in the environement file. Error: {e}. Current value: '{self.output_mode}'"
+                )
+
         return CONST.SUCCESS
 
     async def _initialise_sqlite(self) -> None:
@@ -136,10 +156,12 @@ class Main:
                 os.path.abspath(str(pPath(CONST.CWD) / final_path)),
                 os.path.abspath(str(pPath(CONST.CWD) / ".." / final_path)),
                 os.path.abspath(
-                    str(pPath(CONST.CWD) / ".." / ".." / final_path))
+                    str(pPath(CONST.CWD) / ".." / ".." / final_path)
+                )
             ]
             self.disp.log_debug(
-                f"Paths that are going to be checked: {final_paths}")
+                f"Paths that are going to be checked: {final_paths}"
+            )
             final_path = ""
             for path in final_paths:
                 self.disp.log_debug(f"Checking path: {path}")
@@ -196,6 +218,7 @@ class Main:
         self.msg_handler = MessageHandler(
             self.sqlite,
             self.config_content,
+            self.output_mode,
             self.debug
         )
         self.disp.log_info("Message handler initialised")
@@ -211,7 +234,7 @@ class Main:
         self.bot.update_message_handler_instance(self.msg_handler)
         self.disp.log_debug("Bot's Message handler updated")
         self.disp.log_info("Starting bot")
-        await self.bot.run()
+        await self.bot.run(interval_seconds=self.delay)
         self.disp.log_info("Bot run finished.")
         return CONST.SUCCESS
 
@@ -326,7 +349,18 @@ class Main:
             return CONST.SUCCESS
 
 
-if __name__ == "__main__":
-    DEBUG: bool = HLP.check_input_args()
-    MI = Main(debug=DEBUG)
+def start_wrapper() -> None:
+    """Function in charge or providing an easy way of starting the program.
+    """
+    DATA = HLP.check_input_args()
+    DEBUG = DATA[0]
+    DELAY = DATA[1]
+    OUTPUT_MODE = DATA[2]
+    print(f"DATA={DATA}, DEBUG={DEBUG}, DELAY={DELAY}, OUTPUT_MODE={OUTPUT_MODE}")
+    print("\n\n\n\n")
+    MI = Main(delay=DELAY, output_mode=OUTPUT_MODE, debug=DEBUG)
     sys.exit(MI.main())
+
+
+if __name__ == "__main__":
+    start_wrapper()

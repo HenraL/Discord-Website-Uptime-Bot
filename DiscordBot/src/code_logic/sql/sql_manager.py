@@ -12,7 +12,7 @@ from typing import Optional, Union, List, Dict, Tuple, Literal, Any, overload
 from display_tty import Disp
 from ..program_globals.helpers import initialise_logger
 
-from .sql_time_manipulation import SQLTimeManipulation
+from .sql_time_manipulation import SQLTimeManipulation, datetime
 from .sql_connections import SQLManageConnections
 from .sql_query_boilerplates import SQLQueryBoilerplates
 
@@ -82,8 +82,6 @@ class SQL:
         self.sql_time_manipulation = SQLTimeManipulation(
             self.debug
         )
-        self.datetime_to_string = self.sql_time_manipulation.datetime_to_string
-        self.string_to_datetime = self.sql_time_manipulation.string_to_datetime
         self._get_correct_now_value = self.sql_time_manipulation.get_correct_now_value
         self._get_correct_current_date_value = self.sql_time_manipulation.get_correct_current_date_value
         # --------------------------- debug section  ---------------------------
@@ -114,6 +112,78 @@ class SQL:
     # --------------------------------------------------------------------------
     # WRAPPER DEFINITIONS
     # --------------------------------------------------------------------------
+
+    def datetime_to_string(self, datetime_instance: datetime, date_only: bool = False, sql_mode: bool = False) -> str:
+        """(Wrapper) Delegates to SQLTimeManipulation.datetime_to_string
+
+        Original docstring:
+
+        Format a :class:`datetime` to the project's string representation.
+
+        Args:
+            datetime_instance (datetime): Datetime to format.
+            date_only (bool): When True, return only the date portion.
+            sql_mode (bool): When True, include millisecond precision suitable
+                for insertion into SQL text fields.
+
+        Raises:
+            ValueError: If ``datetime_instance`` is not a :class:`datetime`.
+
+        Returns:
+            str: Formatted date/time string.
+        """
+        if self.sql_time_manipulation is None:
+            raise RuntimeError(self._runtime_error_string)
+        return self.sql_time_manipulation.datetime_to_string(datetime_instance, date_only, sql_mode)
+
+    def string_to_datetime(self, datetime_string_instance: str, date_only: bool = False) -> datetime:
+        """(Wrapper) Delegates to SQLTimeManipulation.string_to_datetime
+
+        Original docstring:
+
+        Parse a formatted date/time string into a :class:`datetime`.
+
+        Args:
+            datetime_string_instance (str): The string to parse.
+            date_only (bool): When True, parse using the date-only format.
+
+        Raises:
+            ValueError: If the input is not a string or cannot be parsed.
+
+        Returns:
+            datetime: Parsed :class:`datetime` instance.
+        """
+        if self.sql_time_manipulation is None:
+            raise RuntimeError(self._runtime_error_string)
+        return self.sql_time_manipulation.string_to_datetime(datetime_string_instance, date_only)
+
+    def get_correct_now_value(self) -> str:
+        """(Wrapper) Delegates to SQLTimeManipulation.get_correct_now_value
+
+        Original docstring:
+
+        Return the current date/time formatted using the project's pattern.
+
+        Returns:
+            str: Formatted current date/time string.
+        """
+        if self.sql_time_manipulation is None:
+            raise RuntimeError(self._runtime_error_string)
+        return self.sql_time_manipulation.get_correct_now_value()
+
+    def get_correct_current_date_value(self) -> str:
+        """(Wrapper) Delegates to SQLTimeManipulation.get_correct_current_date_value
+
+        Original docstring:
+
+        Return the current date formatted using the project's date-only pattern.
+
+        Returns:
+            str: Formatted current date string.
+        """
+        if self.sql_time_manipulation is None:
+            raise RuntimeError(self._runtime_error_string)
+        return self.sql_time_manipulation.get_correct_current_date_value()
 
     async def create_table(self, table: str, columns: List[Tuple[str, str]]) -> int:
         """(Wrapper) Delegates to SQLQueryBoilerplates.create_table

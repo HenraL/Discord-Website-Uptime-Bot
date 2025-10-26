@@ -5,7 +5,9 @@ formats and JSON schema descriptors) used across the application.
 """
 import os
 import dataclasses
-from typing import List, Tuple, Dict, Type, TypeAlias, Optional
+from typing import List, Tuple, Dict, Type, TypeAlias, Optional, Union
+
+from discord import Color
 
 from pathlib import Path
 
@@ -20,6 +22,12 @@ CWD: str = os.path.abspath(str(Path(__file__).parent.parent.parent.parent))
 DEFAULT_CASE_SENSITIVITY: bool = False
 # This corresponds to the number of characters from the website request that are shown in the log, set to -1 for all.
 RESPONSE_LOG_SIZE: int = 500
+MIN_DELAY_BETWEEN_CHECKS: float = 10
+MAX_ALLOWED_EMBEDDED_FIELDS: int = 25
+MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS: int = 255
+MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS: int = 1024
+INLINE_FIELDS: bool = True
+
 
 # Database info
 DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))
@@ -28,12 +36,79 @@ DATABASE_NAME: str = "database.sqlite3"
 # Env searched keys
 TOKEN_KEY: str = "TOKEN"
 CONFIG_FILE_KEY: str = "CONFIG_FILE"
+OUTPUT_MODE_KEY: str = "OUTPUT_MODE"
 
+# Discord message newline
+DISCORD_MESSAGE_NEWLINE: str = "\n"
+DISCORD_MESSAGE_BEGIN_FOOTER: str = "==== Begin Footer ====" + DISCORD_MESSAGE_NEWLINE
+DISCORD_MESSAGE_END_FOOTER: str = "==== End Footer ====" + DISCORD_MESSAGE_NEWLINE
+
+# Prepend a message to every embedding (use a blank string to use the embedding's description (website + status), use None to disable it)
+DISCORD_EMBEDING_MESSAGE: Optional[str] = ""
+
+# Output mode
+
+OUTPUT_RAW: str = "raw"
+OUTPUT_MARKDOWN: str = "markdown"
+OUTPUT_EMBED: str = "embed"
+
+
+class OutputMode(Enum):
+    """The enum containing resembling the format of the output message.
+
+    Args:
+        Enum (str): The enum item of the class.
+    """
+    RAW = OUTPUT_RAW
+    MARKDOWN = OUTPUT_MARKDOWN
+    EMBED = OUTPUT_EMBED
+
+
+OM: Type[OutputMode] = OutputMode
+
+
+# Tracked timeframes
+TIMEFRAME_DAY: str = "day"
+TIMEFRAME_WEEK: str = "week"
+TIMEFRAME_MONTH: str = "month"
+TIMEFRAME_YEAR: str = "year"
+TIMEFRAME_EMOJIS: Dict[str, str] = {
+    TIMEFRAME_DAY: ":clock1:",
+    TIMEFRAME_WEEK: ":calendar:",
+    TIMEFRAME_MONTH: ":crescent_moon:",
+    TIMEFRAME_YEAR: "🗃️"
+}
+
+# Permissions message
+DISCORD_PERMISSIONS_EXPLANATION: List[str] = [
+    # RAW text messages
+    f"{OUTPUT_RAW} mode (plain text messages):",
+    " • Send Messages – the bot must have permission to post in the channel.",
+    " • Read Messages / View Channel – the bot must be able to see the channel to send messages.",
+    "",
+    # Markdown messages
+    f"{OUTPUT_MARKDOWN} mode (formatted text using Discord markdown):",
+    " • Send Messages – required to post the content.",
+    " • Read Messages / View Channel – to access the channel.",
+    " • Embed Links – not strictly required for markdown formatting, but some advanced markdown content may rely on links or mentions.",
+    "",
+    # EMBEDDED messages
+    f"{OUTPUT_EMBED} mode (using Discord embeds):",
+    " • Send Messages – needed to post the embed.",
+    " • Read Messages / View Channel – needed to access the channel.",
+    " • Embed Links – mandatory to send embed content.",
+    " • Attach Files – if the embed includes images or thumbnails that are uploaded (might come in future updates)."
+    "",
+    "",
+    "",
+    ""
+]
 # website status
 
 UP: str = "Up"
 DOWN: str = "Down"
 PARTIALLY_UP: str = "Partially Up"
+UNKNOWN_STATUS: str = "Unknown Status"
 
 
 class WebsiteStatus(Enum):
@@ -45,6 +120,7 @@ class WebsiteStatus(Enum):
     UP = UP
     DOWN = DOWN
     PARTIALLY_UP = PARTIALLY_UP
+    UNKNOWN_STATUS = UNKNOWN_STATUS
 
 
 WS: Type[WebsiteStatus] = WebsiteStatus
@@ -55,11 +131,41 @@ WEBSITE_STATUS: Dict[str, WebsiteStatus] = {
     "partially-up": WebsiteStatus.PARTIALLY_UP,
     "partially_up": WebsiteStatus.PARTIALLY_UP,
     "partiallyup": WebsiteStatus.PARTIALLY_UP,
-    "down": WebsiteStatus.DOWN
+    "down": WebsiteStatus.DOWN,
+    "unknown status": WebsiteStatus.UNKNOWN_STATUS,
+    "unknown-status": WebsiteStatus.UNKNOWN_STATUS,
+    "unknown_status": WebsiteStatus.UNKNOWN_STATUS,
+    "unknownstatus": WebsiteStatus.UNKNOWN_STATUS
+}
+
+# Status emoji's
+UP_EMOJI: str = ":green_circle:"
+PARTIALLY_UP_EMOJI: str = ":yellow_circle:"
+DOWN_EMOJI: str = ":red_circle:"
+UNKNOWN_STATUS_EMOJI: str = ":purple_circle:"
+
+STATUS_EMOJI: Dict[WebsiteStatus, str] = {
+    WebsiteStatus.UP: UP_EMOJI,
+    WebsiteStatus.PARTIALLY_UP: PARTIALLY_UP_EMOJI,
+    WebsiteStatus.DOWN: DOWN_EMOJI,
+    WebsiteStatus.UNKNOWN_STATUS: UNKNOWN_STATUS_EMOJI
+}
+
+# Embed colour
+EMBED_COLOUR: Dict[WebsiteStatus, Color] = {
+    WebsiteStatus.UP: Color.green(),
+    WebsiteStatus.PARTIALLY_UP: Color.yellow(),
+    WebsiteStatus.DOWN: Color.red(),
+    WebsiteStatus.UNKNOWN_STATUS: Color.purple()
 }
 
 # Table structure
 SQLITE_MESSAGES_MESSAGE_ID_NAME: str = "message_id"
+SQLITE_DEAD_CHECKS_MESSAGE_ID_NAME: str = "website_id"
+SQLITE_STATUS_MESSAGE_ID_NAME: str = "website_id"
+SQLITE_STATUS_STATUS_NAME: str = "status"
+SQLITE_STATUS_TIMESTAMP_NAME: str = "timestamp"
+
 SQLITE_TABLE_NAME_MESSAGES: str = "messages"
 SQLITE_TABLE_COLUMNS_MESSAGES: List[Tuple[str, str]] = [
     ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
@@ -75,7 +181,10 @@ SQLITE_TABLE_COLUMNS_MESSAGES: List[Tuple[str, str]] = [
 SQLITE_TABLE_NAME_DEAD_CHECKS: str = "dead_checks"
 SQLITE_TABLE_COLUMNS_DEAD_CHECKS: List[Tuple[str, str]] = [
     ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
-    ("website_id", "INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE"),
+    (
+        f"{SQLITE_DEAD_CHECKS_MESSAGE_ID_NAME}",
+        "INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE"
+    ),
     ("keyword", "TEXT NOT NULL"),
     (
         "response",
@@ -85,12 +194,18 @@ SQLITE_TABLE_COLUMNS_DEAD_CHECKS: List[Tuple[str, str]] = [
 SQLITE_TABLE_NAME_STATUS_HISTORY: str = "status_history"
 SQLITE_TABLE_COLUMNS_STATUS_HISTORY: List[Tuple[str, str]] = [
     ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
-    ("website_id", "INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE"),
     (
-        "status",
+        f"{SQLITE_STATUS_MESSAGE_ID_NAME}",
+        "INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE"
+    ),
+    (
+        f"{SQLITE_STATUS_STATUS_NAME}",
         f"TEXT NOT NULL CHECK(status IN ('{DOWN}', '{PARTIALLY_UP}', '{UP}'))"
     ),
-    ("timestamp", "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP")
+    (
+        f"{SQLITE_STATUS_TIMESTAMP_NAME}",
+        "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+    )
 ]
 SQLITE_MESSAGE_TRIGGER_NAME: str = "update_last_modified"
 SQLITE_MESSAGE_TRIGGER: str = f"""
@@ -203,6 +318,8 @@ class WebsiteNode:
 @dataclasses.dataclass
 class DiscordMessage:
     website_id: Optional[int] = None
-    message_human: str = ""
+    status: Optional[WebsiteStatus] = None
+    website_pretty_url: Optional[str] = None
+    message_human: Union[str, List[Tuple[str, str]]] = ""
     message_channel: Optional[int] = None
     message_id: Optional[int] = None

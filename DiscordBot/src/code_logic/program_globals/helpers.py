@@ -5,7 +5,7 @@ import sys
 import pathlib
 import asyncio
 import threading
-from typing import Any
+from typing import Any, Tuple, Optional
 from functools import partial
 import urllib3.util as uurlib3
 
@@ -161,10 +161,14 @@ def display_help() -> None:
         f"\t{sys.orig_argv[0]} {sys.argv[0]} [--help | --debug | --author | --version]"
     )
     print("OPTIONS:")
-    print("\t-\t-h, --help   \tDisplay this help and exit")
-    print("\t-\t-d, --debug  \tEnable debugging mode")
-    print("\t-\t-a, --author \tDisplay the Author name and exit")
-    print("\t-\t-v, --version\tDisplay the version of this program and exit")
+    print("\t-\t-h, --help                    \tDisplay this help and exit.")
+    print("\t-\t-d, --debug                   \tEnable debugging mode.")
+    print("\t-\t-a, --author                  \tDisplay the Author name and exit.")
+    print("\t-\t-v, --version                 \tDisplay the version of this program and exit.")
+    print("\t-\t-s <delay>, --seconds=<delay> \tSet the delay (seconds) between each iteration check (default: 60).")
+    print(
+        f"\t-\t-o <mode>, --output=<mode>    \tSet the output mode ({CONST.OUTPUT_RAW}, {CONST.OUTPUT_MARKDOWN}, {CONST.OUTPUT_EMBED}) of the discord message for the run, set it in the environement for persistence."
+    )
 
 
 def display_version() -> None:
@@ -181,31 +185,100 @@ def display_author() -> None:
     print(f"This program was written by {CONST.AUTHOR}")
 
 
-def check_input_args() -> bool:
+def check_input_args() -> Tuple[bool, float, Optional[CONST.OutputMode]]:
     """Function to check the arguments that were provided by the user.
 
     Returns:
         bool: Wether debug is enabled or not.
     """
-    DEBUG = False
-    for i in sys.argv:
-        DISP.log_debug(f"arg: {i}")
-        node: str = i.lower()
-        DISP.log_debug(f"arg_lower: {node}")
-        if "-d" in node:
-            DEBUG = not DEBUG
-            DISP.update_disp_debug(DEBUG)
+    _index: int = -1
+    _delay: float = 60
+    _debug: bool = False
+    _argc: int = len(sys.argv)
+    _output_mode: Optional[CONST.OutputMode] = None
+    while _index+1 < _argc:
+        _index += 1
+        DISP.log_debug(f"argv[{_index}]={sys.argv[_index]}")
+        _node: str = sys.argv[_index].lower()
+        DISP.log_debug(f"arg_lower: '{_node}'")
+        if "-d" in _node or "--d" in _node:
+            _debug = not _debug
+            DISP.update_disp_debug(_debug)
             DISP.log_debug("Debug is active")
-        if "-h" in node:
+        if "-h" in _node or "--h" in _node:
             display_help()
             sys.exit(CONST.SUCCESS)
-        if "-v" in node:
+        if "-v" in _node or "--v" in _node:
             display_version()
             sys.exit(CONST.SUCCESS)
-        if "-a" in node:
+        if "-a" in _node or "--a" in _node:
             display_author()
             sys.exit(CONST.SUCCESS)
-    return DEBUG
+        if "-o" in _node or "--o" in _node or "-output" in _node or "--output" in _node:
+            child = ""
+            if "=" in _node:
+                child = _node.split("=", 1)[-1]
+            elif _index+1 != _argc and sys.argv[_index+1][0] != '-':
+                child = sys.argv[_index+1].lower()
+                _index += 1
+            else:
+                DISP.log_warning(
+                    f"Unknown or badly formated parameter: '{_node}'"
+                )
+            if len(child) == 0:
+                DISP.log_warning(
+                    "Parameter value is missing, skipping argument"
+                )
+                continue
+            if child == CONST.OUTPUT_RAW:
+                _output_mode = CONST.OutputMode.RAW
+            elif child == CONST.OUTPUT_MARKDOWN:
+                _output_mode = CONST.OutputMode.MARKDOWN
+            elif child == CONST.OUTPUT_EMBED:
+                _output_mode = CONST.OutputMode.EMBED
+            else:
+                DISP.log_warning(
+                    f"Wrong parameter, expected ({CONST.OUTPUT_RAW}, {CONST.OUTPUT_MARKDOWN}, {CONST.OUTPUT_EMBED}) but got: {child}"
+                )
+                _output_mode = None
+        if "-s" in _node or "--s" in _node or "-second" in _node or "--second" in _node:
+            child = ""
+            if "=" in _node:
+                child = _node.split("=", 1)[-1]
+            elif _index+1 != _argc and sys.argv[_index+1][0] != '-':
+                child = sys.argv[_index+1].lower()
+                _index += 1
+            else:
+                DISP.log_warning(
+                    f"Unknown or badly formated parameter: '{_node}'"
+                )
+            if len(child) == 0:
+                DISP.log_warning(
+                    "Parameter value is missing, skipping argument"
+                )
+                continue
+            try:
+                value: float = float(child)
+                if value < 0:
+                    DISP.log_warning(
+                        "Negative values not supported, converting to positive"
+                    )
+                    value *= -1
+                if value < CONST.MIN_DELAY_BETWEEN_CHECKS:
+                    DISP.log_warning(
+                        f"Waiting delay is smaller than the default allowed, defaulting to minimum allowed: {CONST.MIN_DELAY_BETWEEN_CHECKS}"
+                    )
+                    value = CONST.MIN_DELAY_BETWEEN_CHECKS
+                _delay = value
+            except ValueError as e:
+                DISP.log_warning(
+                    f"Provided value is not a number, ignoring, (info) error: {e}"
+                )
+    _resp = [_debug, _delay, _output_mode]
+    DISP.log_debug(f"Debug, Delay = {_resp}")
+    _tupled = tuple(_resp)
+    DISP.log_debug(f"_tupled = {_tupled}")
+    return _tupled
 
 
 def await_async_function_from_synchronous(function: partial) -> Any:
@@ -222,18 +295,12 @@ def await_async_function_from_synchronous(function: partial) -> Any:
     except RuntimeError:
         loop = None
 
-    # Case 1: A loop exists and is running in *this* thread
     if loop and loop.is_running():
-        # Check if we're in the same thread as the loop
         if threading.current_thread() is threading.main_thread():
-            # We're inside the same thread as the running loop (e.g. in async code)
-            # We cannot block, so create a task and run it via loop.run_until_complete if possible
             task = loop.create_task(function())
             return loop.run_until_complete(task)
-        # We’re in another thread, safe to use run_coroutine_threadsafe
         future = asyncio.run_coroutine_threadsafe(function(), loop)
         return future.result()
 
-    # Case 2: No loop running anywhere in this thread
     with _LOOP_LOCK:
         return asyncio.run(function())

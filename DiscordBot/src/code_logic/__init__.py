@@ -6,10 +6,11 @@ globals, SQL helpers and the program ``Main`` entrypoint).
 
 from . import program_globals
 from . import sql
-from .main import Main
+from .main import Main, start_wrapper
 
 __all__ = [
     "program_globals",
     "sql",
-    "Main"
+    "Main",
+    "start_wrapper"
 ]
