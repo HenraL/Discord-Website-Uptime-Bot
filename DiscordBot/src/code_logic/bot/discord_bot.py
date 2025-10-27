@@ -68,7 +68,7 @@ class DiscordBot:
         """
         self.discord_intents = discord.Intents.default()
         self.discord_intents.messages = True
-        self.discord_intents.guilds = True
+        # self.discord_intents.guilds = True
         self.discord_intents.message_content = bool(
             self._discord_default_message_content_enabled
         )
@@ -89,10 +89,6 @@ class DiscordBot:
             self.disp.log_info(f"Connected as {self.discord_client.user}")
         else:
             self.disp.log_error(MSG_ERROR_NO_ACTIVE_CLIENT)
-
-    async def _on_ready_wrapper(self) -> None:
-        """Internal async hook that forwards to the real handler."""
-        self.on_ready()
 
     def update_message_handler_instance(self, instance: MessageHandler) -> None:
         """Function in charge of updating the instance for the Message Handler class.
@@ -695,7 +691,7 @@ class DiscordBot:
             message_present: bool = await self._check_message_presence(message.message_channel, message.message_id)
             self.disp.log_debug(f"message_present: {message_present}")
             if not message_present:
-                status: int = await self._send_message(message)
+                status: int = await self._send_process(message)
                 self.disp.log_debug(f"Message sending process: {status}")
                 continue
             # A message exists, updating it
@@ -730,8 +726,7 @@ class DiscordBot:
         self._update_loop.start()
 
         self.disp.log_info(
-            INFO_COLOUR +
-            f"Bot loop started with {interval_seconds}s interval."+RESET_COLOUR
+            f"{INFO_COLOUR}Bot loop started with {interval_seconds}s interval.{RESET_COLOUR}"
         )
         try:
             await self.discord_client.start(self.token)
