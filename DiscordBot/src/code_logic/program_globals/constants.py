@@ -52,6 +52,25 @@ INLINE_FIELDS: bool = True
 DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))
 DATABASE_NAME: str = "database.sqlite3"
 
+# Prepend message shown before an embed's content. Controls what (if any)
+# text is sent alongside an embed when output mode is EMBED:
+#  - None => do not send any prepended text (only the embed will be sent)
+#  - "" (empty string) => use the embed's description (e.g. website + status)
+#  - any other string => that string will be sent as content before the embed
+DISCORD_EMBEDING_MESSAGE: Optional[str] = None  # ""
+
+# Whether to request the privileged MESSAGE_CONTENT intent from Discord.
+# When True the bot will ask for message content access (allows reading
+# message content). Enabling this requires turning the intent on in the
+# Discord Developer Portal for the bot and may require a client restart.
+DISCORD_DEFAULT_MESSAGE_CONTENT: bool = False
+
+# If True, automatically restart the Discord client when runtime configuration
+# that affects the client's behaviour (for example toggling the
+# MESSAGE_CONTENT intent) is changed. Restarting ensures the new settings
+# are picked up without a full manual restart.
+DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED: bool = False
+
 # Env searched keys
 TOKEN_KEY: str = "TOKEN"
 CONFIG_FILE_KEY: str = "CONFIG_FILE"
@@ -61,15 +80,6 @@ OUTPUT_MODE_KEY: str = "OUTPUT_MODE"
 DISCORD_MESSAGE_NEWLINE: str = "\n"
 DISCORD_MESSAGE_BEGIN_FOOTER: str = "==== Begin Footer ====" + DISCORD_MESSAGE_NEWLINE
 DISCORD_MESSAGE_END_FOOTER: str = "==== End Footer ====" + DISCORD_MESSAGE_NEWLINE
-
-# Prepend a message to every embedding (use a blank string to use the embedding's description (website + status), use None to disable it)
-DISCORD_EMBEDING_MESSAGE: Optional[str] = None  # ""
-
-# ask discord to fetch message content
-DISCORD_DEFAULT_MESSAGE_CONTENT: bool = True
-
-# Restart the client if the configuration has been changed
-DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED: bool = False
 
 # Output mode
 
