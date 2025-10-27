@@ -64,6 +64,16 @@ class MessageHandler:
         return self.output_mode
 
     def _clean_url(self, raw_url: str) -> str:
+        """Normalize a raw URL to its base (scheme + host + optional port).
+
+        The result is cached in ``self.cleaned_urls`` for subsequent calls.
+
+        Args:
+            raw_url (str): The raw URL to normalise.
+
+        Returns:
+            str: Normalized base URL (e.g. "https://example.com:8080").
+        """
         self.disp.log_debug(
             f"Checking if the unprocessed url '({raw_url})' has a verified instance in the cache url."
         )
@@ -88,6 +98,10 @@ class MessageHandler:
         return final_url
 
     def _get_last_update_human_date(self) -> Union[str, Tuple[str, str]]:
+        """Return a human-readable "last updated" string formatted per output mode.
+
+        Returns either a plain string or a tuple suitable for embed fields.
+        """
         _current_date = self.connection.get_correct_now_value()
         self.disp.log_debug(f"Current date: {_current_date}")
         if self.output_mode == CONST.OM.MARKDOWN:
@@ -99,6 +113,11 @@ class MessageHandler:
         return _final
 
     def _get_desired_timeframes(self) -> Dict[str, date]:
+        """Return a mapping of timeframe keys to cutoff dates.
+
+        The keys are the constants (day/week/month/year) used elsewhere
+        to aggregate uptime statistics.
+        """
         _now = datetime.now(timezone.utc).date()
         ranges = {
             CONST.TIMEFRAME_DAY: _now - timedelta(days=1),
@@ -109,6 +128,11 @@ class MessageHandler:
         return ranges
 
     def _initialised_desired_frames(self) -> Dict[str, defaultdict]:
+        """Create initial counters (defaultdict(int)) for each timeframe.
+
+        Returns:
+            Dict[str, defaultdict]: Empty counters keyed by timeframe names.
+        """
         counters = {
             CONST.TIMEFRAME_DAY: defaultdict(int),
             CONST.TIMEFRAME_WEEK: defaultdict(int),
@@ -118,6 +142,15 @@ class MessageHandler:
         return counters
 
     def _format_timeframes(self, counter: defaultdict, name: str) -> Union[str, Tuple[str, str]]:
+        """Format a timeframe counter into a string or embed tuple.
+
+        Args:
+            counter (defaultdict): Counters for UP/PARTIALLY_UP/DOWN/etc.
+            name (str): Human readable timeframe name (day/week/month/year).
+
+        Returns:
+            Union[str, Tuple[str, str]]: Formatted output depending on output mode.
+        """
         up = counter.get(CONST.UP, 0)
         down = counter.get(CONST.DOWN, 0)
         partial = counter.get(CONST.PARTIALLY_UP, 0)
@@ -136,6 +169,14 @@ class MessageHandler:
         return final_string
 
     def _get_latest_checks_per_day(self, data: List[Dict[str, Any]]) -> Dict[date, Dict[str, Any]]:
+        """From historical checks pick the latest entry per date.
+
+        Args:
+            data (List[Dict[str, Any]]): List of rows with timestamp field.
+
+        Returns:
+            Dict[date, Dict[str, Any]]: Mapping from date to the latest row for that date.
+        """
         daily_latest: Dict[date, Dict[str, Any]] = {}
         for check in data:
             try:
@@ -157,6 +198,14 @@ class MessageHandler:
         return daily_latest
 
     def _compile_website_data(self, data: List[Dict[str, Any]]) -> Union[str, List[Tuple[str, str]]]:
+        """Aggregate raw status rows into formatted uptime summaries.
+
+        Args:
+            data (List[Dict[str, Any]]): Raw status history rows for a website.
+
+        Returns:
+            Union[str, List[Tuple[str, str]]]: Formatted summary depending on output mode.
+        """
         _data_cleaned: Dict[
             date, Dict[str, Any]
         ] = self._get_latest_checks_per_day(data)
@@ -221,6 +270,14 @@ class MessageHandler:
         return CONST.DISCORD_MESSAGE_NEWLINE.join(final_data)
 
     async def _get_website_data(self, website_id: int) -> Union[str, List[Tuple[str, str]]]:
+        """Gather and format a website's historical status data for presentation.
+
+        Args:
+            website_id (int): Identifier of the website in the DB.
+
+        Returns:
+            Union[str, List[Tuple[str, str]]]: Formatted history content or an error placeholder.
+        """
         if self.output_mode == CONST.OM.MARKDOWN:
             _error_message: Union[
                 str, List[Tuple[str, str]]
@@ -292,6 +349,14 @@ class MessageHandler:
         return CONST.DISCORD_MESSAGE_NEWLINE.join(final_data)
 
     async def _get_meta_data(self, url: str) -> Union[str, List[Tuple[str, str]]]:
+        """Build metadata (last updated + activity summary) for a URL.
+
+        Args:
+            url (str): The website URL to query metadata for.
+
+        Returns:
+            Union[str, List[Tuple[str, str]]]: Meta information in the configured output mode.
+        """
         _last_updated: Union[
             str,
             Tuple[str, str]
@@ -328,6 +393,10 @@ class MessageHandler:
         return CONST.DISCORD_MESSAGE_NEWLINE.join(final_meta_data)
 
     def _make_raw_url_human_readable(self, raw_url: str) -> Union[str, Tuple[str, str]]:
+        """Return a small human-readable representation of the full raw URL.
+
+        The return type adapts to the configured output mode.
+        """
         if self.output_mode == CONST.OM.MARKDOWN:
             return f"**Full url**: {raw_url}"
         elif self.output_mode == CONST.OM.EMBED:
@@ -336,6 +405,15 @@ class MessageHandler:
             return f"Full url: {raw_url}"
 
     async def _make_human_readable(self, url: str, status: CONST.WebsiteStatus) -> Union[str, List[Tuple[str, str]]]:
+        """Compose the human-facing status message for a single website.
+
+        Args:
+            url (str): The website URL.
+            status (CONST.WebsiteStatus): The computed status enum.
+
+        Returns:
+            Union[str, List[Tuple[str, str]]]: Formatted message depending on output mode.
+        """
         cleaned_url: str = self._clean_url(url)
         data: Union[str, List[Tuple[str, str]]] = await self._get_meta_data(url)
         raw_url: Union[
@@ -417,6 +495,16 @@ class MessageHandler:
         return CONST.DISCORD_MESSAGE_NEWLINE.join(final_string)
 
     def _check_if_keyword_in_content(self, needle: str, haystack: str, case_sensitive: bool = False) -> bool:
+        """Check whether ``needle`` exists in ``haystack`` ignoring extra whitespace.
+
+        Args:
+            needle (str): The substring to search for.
+            haystack (str): The text to search within.
+            case_sensitive (bool): If True, perform a case-sensitive search.
+
+        Returns:
+            bool: True if found, False otherwise.
+        """
         self.disp.log_debug(f"Case sensitive: {case_sensitive}")
         needle_cleaned: str = re.sub(r'\\s+', ' ', needle)
         if not case_sensitive:
@@ -434,6 +522,16 @@ class MessageHandler:
         return found
 
     def _check_deadchecks(self, request: requests.Response, dead_checks: List[CONST.DeadCheck], default: CONST.WebsiteStatus = CONST.WS.UP) -> CONST.WebsiteStatus:
+        """Evaluate "dead check" keywords in the response and map them to a status.
+
+        Args:
+            request (requests.Response): The HTTP response to inspect.
+            dead_checks (List[CONST.DeadCheck]): Dead-check rules to apply.
+            default (CONST.WebsiteStatus): Default status to return if none match.
+
+        Returns:
+            CONST.WebsiteStatus: The status chosen by matching rules or the default.
+        """
         website_response: str = request.text
         website_response_lower: str = ""
         _tmp_response: str = ""
@@ -528,6 +626,14 @@ class MessageHandler:
         return _qs
 
     async def _get_website_id(self, url: str) -> Union[int, None]:
+        """Return the database id for a website URL or None if not found.
+
+        Args:
+            url (str): The website URL to look up.
+
+        Returns:
+            Union[int, None]: The integer id or None if missing/unavailable.
+        """
         if url == "":
             self.disp.log_warning("Empty url provided.")
             return None
@@ -799,6 +905,14 @@ class MessageHandler:
         return CONST.SUCCESS
 
     async def _update_message_table(self, websites: CONST.WebsiteNode) -> int:
+        """Insert or update the main messages table for a website node.
+
+        Args:
+            websites (CONST.WebsiteNode): The validated website node.
+
+        Returns:
+            int: CONST.SUCCESS or CONST.ERROR.
+        """
         table: str = CONST.SQLITE_TABLE_NAME_MESSAGES
         columns: Union[List[str], int] = await self.connection.get_table_column_names(table)
         if isinstance(columns, int):
@@ -826,6 +940,14 @@ class MessageHandler:
         return status
 
     async def _update_dead_checks_table(self, websites: CONST.WebsiteNode) -> int:
+        """Insert or update dead-check entries for a website node.
+
+        Args:
+            websites (CONST.WebsiteNode): The validated website node.
+
+        Returns:
+            int: CONST.SUCCESS or CONST.ERROR.
+        """
         dest_table: str = CONST.SQLITE_TABLE_NAME_DEAD_CHECKS
         table_id_raw: Union[int, None] = await self._get_website_id(websites.url)
         if table_id_raw is None:
@@ -870,6 +992,15 @@ class MessageHandler:
         self, websites: CONST.WebsiteNode, query_status: bool) -> Union[int, CONST.QueryStatus]: ...
 
     async def _update_status_history_table(self, websites: CONST.WebsiteNode, query_status: bool = False) -> Union[int, CONST.QueryStatus]:
+        """Check website status, write a row to the status history table.
+
+        Args:
+            websites (CONST.WebsiteNode): The website node to check.
+            query_status (bool): If True, return the QueryStatus instead of the numeric result.
+
+        Returns:
+            Union[int, CONST.QueryStatus]: The inserted row status code or the QueryStatus object when requested.
+        """
         dest_table: str = CONST.SQLITE_TABLE_NAME_STATUS_HISTORY
         columns: Union[List[str], int] = await self.connection.get_table_column_names(dest_table)
         if isinstance(columns, int):
@@ -907,10 +1038,10 @@ class MessageHandler:
         return status
 
     async def _update_table_content(self) -> int:
-        """Function in charge of filling the table with the content of the json config
+        """Fill the DB tables with entries derived from the validated JSON configuration.
 
         Returns:
-            int: The filling status.
+            int: CONST.SUCCESS on success, otherwise CONST.ERROR.
         """
         for website in self.processed_json:
             status: int = await self._update_message_table(website)
@@ -934,6 +1065,11 @@ class MessageHandler:
         return CONST.SUCCESS
 
     async def _check_database_connection(self) -> int:
+        """Ensure the SQL connection is functional, attempt to initialise if not.
+
+        Returns:
+            int: CONST.SUCCESS if a working connection is available, otherwise CONST.ERROR.
+        """
         try:
             _ = await self.connection.get_table_names()
             return CONST.SUCCESS
@@ -1082,6 +1218,11 @@ class MessageHandler:
         return discord_message
 
     async def _build_discord_message(self, website_node: CONST.WebsiteNode) -> Union[int, CONST.DiscordMessage]:
+        """Prepare a CONST.DiscordMessage for a given website_node.
+
+        This checks status, builds human readable content, and attempts to
+        look up any existing message id in the database.
+        """
         _dm: CONST.DiscordMessage = CONST.DiscordMessage()
         _dm.message_channel = website_node.channel
         query_status: Union[int, CONST.QueryStatus] = await self._update_status_history_table(website_node, True)

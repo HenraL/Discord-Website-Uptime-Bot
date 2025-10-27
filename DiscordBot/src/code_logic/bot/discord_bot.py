@@ -119,6 +119,12 @@ class DiscordBot:
             self._update_loop.cancel()
 
     def _log_missing_message_content_intent(self, recalled: bool = False) -> None:
+        """Log a warning about missing MESSAGE_CONTENT privileged intent.
+
+        Args:
+            recalled (bool): True if this warning has already been shown once
+                during this runtime (used to avoid repeating the warning).
+        """
         if not recalled:
             self.disp.log_warning(
                 WARNING_COLOUR+"MESSAGE_CONTENT privileged intent has been disabled for this runtime!"+RESET_COLOUR
@@ -137,12 +143,19 @@ class DiscordBot:
             )
 
     def _log_retrying_message(self) -> None:
+        """Log a short notice that a send/edit attempt is being retried once."""
         self.disp.log_warning("Attempt failed, retrying once...")
 
     def _log_retrying_bot_initialisation(self) -> None:
+        """Log a short notice that bot initialisation will be retried once."""
         self.disp.log_warning("Bot initialisation failed, retrying once...")
 
     def _log_abandoning_message(self, err: Optional[str] = None) -> None:
+        """Log an error when abandoning a message operation after retries.
+
+        Args:
+            err (Optional[str]): Optional error message or details.
+        """
         self.disp.log_error(MSG_ERROR_SOMETHING_DEFINITELY_FAILED)
         if err:
             self.disp.log_debug(f"[error: '{type(err).__name__}':'{err}']")
@@ -150,6 +163,7 @@ class DiscordBot:
         self._log_permissions_message()
 
     def _log_permissions_message(self) -> None:
+        """Emit a formatted error message listing required Discord permissions."""
         self.disp.log_error(
             "Have you checked that your agent (the sender: bot/user/etc) has the following permissions:"
         )
@@ -157,6 +171,12 @@ class DiscordBot:
             self.disp.log_error(f"{i}")
 
     def _log_discord_message_intent_error(self, pre_message: Optional[str] = None, error: Optional[Any] = None) -> None:
+        """Log errors related to missing Discord MESSAGE_CONTENT intent.
+
+        Args:
+            pre_message (Optional[str]): Optional critical preface to log.
+            error (Optional[Any]): Optional exception or error object to include.
+        """
         if pre_message:
             self.disp.log_critical(CRITICAL_COLOUR+pre_message+RESET_COLOUR)
         if error:
@@ -168,11 +188,24 @@ class DiscordBot:
             self.disp.log_critical(CRITICAL_COLOUR+pre_message+RESET_COLOUR)
 
     def _get_message_colour(self, message_status: Optional[WebsiteStatus]) -> Color:
+        """Return the embed color that corresponds to the provided website status.
+
+        Args:
+            message_status (Optional[WebsiteStatus]): The website status enum value.
+
+        Returns:
+            Color: A Discord embed Color mapping for the status.
+        """
         if message_status in EMBED_COLOUR:
             return EMBED_COLOUR[message_status]
         return Color.purple()
 
     def _restart_bot(self) -> int:
+        """Attempt to restart the Discord client instance.
+
+        Returns:
+            int: SUCCESS on success or ERROR on failure.
+        """
         try:
             self.disp.log_warning(
                 WARNING_COLOUR+"Restarting client"+RESET_COLOUR)
@@ -191,6 +224,14 @@ class DiscordBot:
             return ERROR
 
     def _disable_discord_message_content_intent(self, reboot: bool = True) -> int:
+        """Disable the MESSAGE_CONTENT intent at runtime and optionally restart the client.
+
+        Args:
+            reboot (bool): If True and configuration requires it, restart the client.
+
+        Returns:
+            int: SUCCESS on success, ERROR otherwise.
+        """
         self._log_missing_message_content_intent()
         if not self.discord_intents:
             self.disp.log_error(MSG_ERROR_MESSAGE_INTENTS_STATUS_MISSING)
