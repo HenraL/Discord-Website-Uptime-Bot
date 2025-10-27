@@ -347,6 +347,23 @@ class Main:
             self.disp.log_info("CTRL+C caught, cleanly shutting down")
             self._free_ressources()
             return CONST.SUCCESS
+        except RuntimeError as e:
+            self.disp.log_info("Freeing ressources")
+            self._free_ressources()
+            self.disp.log_critical(
+                "An internal critical error has caused the program to stop prematurely, see above for error"
+            )
+            self.disp.log_error(f"[error: '{type(e).__name__}':'{str(e)}']")
+            return CONST.ERROR
+        except Exception as e:
+            self.disp.log_critical("An unhandled error has been caught.")
+            self.disp.log_info("Freeing ressources")
+            self._free_ressources()
+            self.disp.log_critical(f"Error name: {type(e).__name__}")
+            self.disp.log_critical(f"Error content: {str(e)}")
+            raise RuntimeError(
+                f"Critical program error '{type(e).__name__}'"
+            ) from e
 
 
 def start_wrapper() -> None:
