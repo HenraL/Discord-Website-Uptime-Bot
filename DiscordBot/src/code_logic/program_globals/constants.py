@@ -7,19 +7,38 @@ import os
 import dataclasses
 from typing import List, Tuple, Dict, Type, TypeAlias, Optional, Union
 
-from discord import Color
-
 from pathlib import Path
 
 from enum import Enum
 
+from discord import Color
+
+# message colour
+BOLD_TEXT: str = "\033[1m"
+RESET_COLOUR: str = "\033[0m"
+BACKGROUND_COLOUR: str = "\033[48;5;232m"  # black
+CRITICAL_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + "\033[38;5;9m"  # red
+ERROR_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + \
+    "\033[38;5;124m"  # darker shade of red
+WARNING_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;11m"  # yellow
+INFO_COLOUR: str = BACKGROUND_COLOUR + \
+    "\033[38;5;10m"  # lime geen (close enougth)
+DEBUG_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;14m"
+
+# Program status codes
 ERROR: int = 1
 SUCCESS: int = 0
+
+# Program versions and author
 VERSION: str = "2.0.0"
 AUTHOR: str = "(c) Henry Letellier"
+
+# Current working directory
 CWD: str = os.path.abspath(str(Path(__file__).parent.parent.parent.parent))
+
 # default value for the case sensitivity check option.
 DEFAULT_CASE_SENSITIVITY: bool = False
+
 # This corresponds to the number of characters from the website request that are shown in the log, set to -1 for all.
 RESPONSE_LOG_SIZE: int = 500
 MIN_DELAY_BETWEEN_CHECKS: float = 10
@@ -45,6 +64,12 @@ DISCORD_MESSAGE_END_FOOTER: str = "==== End Footer ====" + DISCORD_MESSAGE_NEWLI
 
 # Prepend a message to every embedding (use a blank string to use the embedding's description (website + status), use None to disable it)
 DISCORD_EMBEDING_MESSAGE: Optional[str] = None  # ""
+
+# ask discord to fetch message content
+DISCORD_DEFAULT_MESSAGE_CONTENT: bool = True
+
+# Restart the client if the configuration has been changed
+DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED: bool = False
 
 # Output mode
 
@@ -80,7 +105,11 @@ TIMEFRAME_EMOJIS: Dict[str, str] = {
 }
 
 # Permissions message
+DISCORD_MESSAGE_CONTENT_INTENT_ERROR: str = "For all modes, if in a bot, please make sure that the Message Content Intent is enabled."
 DISCORD_PERMISSIONS_EXPLANATION: List[str] = [
+    "",
+    DISCORD_MESSAGE_CONTENT_INTENT_ERROR,
+    "",
     # RAW text messages
     f"{OUTPUT_RAW} mode (plain text messages):",
     " • Send Messages – the bot must have permission to post in the channel.",
@@ -323,3 +352,39 @@ class DiscordMessage:
     message_human: Union[str, List[Tuple[str, str]]] = ""
     message_channel: Optional[int] = None
     message_id: Optional[int] = None
+
+
+# Important error messages set in a way that is eye catchy
+
+# Runtime error
+MSG_RUNTIME_CRITICAL_INIT_ERROR: str = "Bot initialisation error"
+MSG_CRITICAL_DISABLE_MESSAGE_CONTENT: str = "Failed to disable message content intent, exiting."
+MSG_CRITICAL_NO_ACTIVE_CLIENT_INSTANCE: str = "No active client instance."
+# Message error
+MSG_ERROR_UPDATE_ERROR: str = ERROR_COLOUR + \
+    "Failed to update message, skipping update"+RESET_COLOUR
+MSG_ERROR_DISCORD_CLIENT_NOT_INITIALISED: str = ERROR_COLOUR + \
+    "Discord client not initialized."+RESET_COLOUR
+MSG_ERROR_DISCORD_CLIENT_INITIALISATION_FAILED: str = ERROR_COLOUR + \
+    "Discord client initialisation failed."+RESET_COLOUR
+MSG_ERROR_WEBSITE_UPDATE_FAILED: str = ERROR_COLOUR + \
+    "Website update failed, see above for error details"+RESET_COLOUR
+MSG_ERROR_NO_MESSAGE_HANDLER_INSTANCE: str = ERROR_COLOUR + \
+    "There are not message handler instances present, skipping update"+RESET_COLOUR
+MSG_ERROR_MESSAGE_SEND_FAILED: str = ERROR_COLOUR + \
+    "Failed to send message, skipping update"+RESET_COLOUR
+MSG_ERROR_MESSAGE_RETRIEVAL_FAILED: str = ERROR_COLOUR + \
+    "Attempting to retrieve the message failed, presuming that it does not exist."+RESET_COLOUR
+MSG_ERROR_NO_CHANNEL_OR_MESSAGE_ID: str = ERROR_COLOUR + \
+    "Discord message missing channel or message ID."+RESET_COLOUR
+MSG_ERROR_CHANNEL_NOT_A_TEXTCHANNEL_OR_THREAD: str = ERROR_COLOUR + \
+    "Channel is not a TextChannel or Thread. Cannot send messages."+RESET_COLOUR
+MSG_ERROR_MESSAGE_MISSING_CHANNEL_ID: str = ERROR_COLOUR + \
+    "Discord message missing channel ID."+RESET_COLOUR
+MSG_ERROR_CHANNEL_IS_NOT_A_TEXTCHANNEL_OR_THREAD: str = ERROR_COLOUR + \
+    "Channel is not a TextChannel or Thread. Cannot send messages."+RESET_COLOUR
+MSG_ERROR_MESSAGE_INTENTS_STATUS_MISSING: str = ERROR_COLOUR + \
+    "Could not find the discord intents status, abandoning"+RESET_COLOUR
+MSG_ERROR_SOMETHING_DEFINITELY_FAILED: str = ERROR_COLOUR + \
+    "Well, something is definitely wrong, because it failed on the second time to, abandoning."+RESET_COLOUR
+MSG_ERROR_NO_ACTIVE_CLIENT: str = ERROR_COLOUR+"No active client"+RESET_COLOUR

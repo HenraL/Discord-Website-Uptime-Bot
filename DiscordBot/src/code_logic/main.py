@@ -328,10 +328,14 @@ class Main:
     def _free_ressources(self) -> None:
         """Function in charge of calling the child functions that will release allocated ressources if any.
         """
-        self.disp.log_debug("Freeing ressources")
+        self.disp.log_debug(
+            f"{CONST.DEBUG_COLOUR}Freeing ressources{CONST.DEBUG_COLOUR}"
+        )
         self._free_bot()
         self._free_sqlite()
-        self.disp.log_debug("Ressources freed")
+        self.disp.log_debug(
+            f"{CONST.DEBUG_COLOUR}Ressources freed{CONST.RESET_COLOUR}"
+        )
 
     def main(self, *args: Any, **kwds: Any) -> int:
         """Function in charge of catching the keyboard interrupt, thus allowing the program to cleanly shutdown
@@ -339,30 +343,42 @@ class Main:
         Returns:
             int: _description_
         """
+        _freeing_ressources_info: str = CONST.INFO_COLOUR + \
+            "Freeing ressources"+CONST.RESET_COLOUR
         try:
             status = self._main(*args, **kwds)
             self._free_ressources()
             return status
         except KeyboardInterrupt:
-            self.disp.log_info("CTRL+C caught, cleanly shutting down")
+            self.disp.log_info(
+                CONST.INFO_COLOUR+"CTRL+C caught, cleanly shutting down"+CONST.RESET_COLOUR
+            )
             self._free_ressources()
             return CONST.SUCCESS
         except RuntimeError as e:
-            self.disp.log_info("Freeing ressources")
+            self.disp.log_info(_freeing_ressources_info)
             self._free_ressources()
             self.disp.log_critical(
-                "An internal critical error has caused the program to stop prematurely, see above for error"
+                f"{CONST.CRITICAL_COLOUR}An internal critical error has caused the program to stop prematurely, see above for error{CONST.RESET_COLOUR}"
             )
-            self.disp.log_error(f"[error: '{type(e).__name__}':'{str(e)}']")
+            self.disp.log_error(
+                f"{CONST.CRITICAL_COLOUR}[error: '{type(e).__name__}{CONST.CRITICAL_COLOUR}':'{str(e)}{CONST.CRITICAL_COLOUR}']{CONST.RESET_COLOUR}"
+            )
             return CONST.ERROR
         except Exception as e:
-            self.disp.log_critical("An unhandled error has been caught.")
-            self.disp.log_info("Freeing ressources")
+            self.disp.log_critical(
+                f"{CONST.CRITICAL_COLOUR}An unhandled error has been caught.{CONST.RESET_COLOUR}"
+            )
+            self.disp.log_info(_freeing_ressources_info)
             self._free_ressources()
-            self.disp.log_critical(f"Error name: {type(e).__name__}")
-            self.disp.log_critical(f"Error content: {str(e)}")
+            self.disp.log_critical(
+                f"{CONST.CRITICAL_COLOUR}Error name: {type(e).__name__}{CONST.RESET_COLOUR}"
+            )
+            self.disp.log_critical(
+                f"{CONST.CRITICAL_COLOUR}Error content: {str(e)}{CONST.RESET_COLOUR}"
+            )
             raise RuntimeError(
-                f"Critical program error '{type(e).__name__}'"
+                f"{CONST.CRITICAL_COLOUR}Critical program error '{type(e).__name__}'{CONST.RESET_COLOUR}"
             ) from e
 
 

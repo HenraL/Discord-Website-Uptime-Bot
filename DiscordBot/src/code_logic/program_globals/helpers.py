@@ -9,10 +9,14 @@ from typing import Any, Tuple, Optional
 from functools import partial
 import urllib3.util as uurlib3
 
+from colorama import just_fix_windows_console
 from display_tty import Disp, TOML_CONF, SAVE_TO_FILE, FILE_NAME
 from ask_question import AskQuestion
 
 from . import constants as CONST
+
+# All the crappy little windows display bugs that could occur
+just_fix_windows_console()
 
 _LOOP_LOCK = threading.Lock()
 
