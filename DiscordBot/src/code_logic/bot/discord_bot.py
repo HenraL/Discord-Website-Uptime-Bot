@@ -6,6 +6,7 @@ to initialise and run the bot.
 """
 
 from typing import List, Optional, Union, Tuple, Any
+from time import sleep
 from datetime import datetime
 
 import discord
@@ -21,7 +22,7 @@ from ..program_globals.helpers import initialise_logger
 from ..program_globals.constants import DiscordMessage, SUCCESS, ERROR, \
     OutputMode, WebsiteStatus, EMBED_COLOUR, STATUS_EMOJI, \
     MAX_ALLOWED_EMBEDDED_FIELDS, MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS, MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS, \
-    INLINE_FIELDS, \
+    INLINE_FIELDS, DELAY_BETWEEN_MESSAGE_SENDS_SECONDS, \
     DISCORD_MESSAGE_NEWLINE, DISCORD_MESSAGE_BEGIN_FOOTER, DISCORD_MESSAGE_END_FOOTER, \
     DISCORD_EMBEDING_MESSAGE, DISCORD_PERMISSIONS_EXPLANATION, DISCORD_MESSAGE_CONTENT_INTENT_ERROR, \
     DISCORD_DEFAULT_MESSAGE_CONTENT, DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED, \
@@ -57,6 +58,7 @@ class DiscordBot:
         self.discord_intents: Optional[discord.Intents] = None
         self.discord_client: Optional[discord.Client] = None
         self._update_loop: Optional[tasks.Loop] = None
+        self._artificial_delay_seconds: float = DELAY_BETWEEN_MESSAGE_SENDS_SECONDS
         self._discord_default_message_content_enabled: bool = DISCORD_DEFAULT_MESSAGE_CONTENT
 
     def __del__(self) -> None:
@@ -105,6 +107,28 @@ class DiscordBot:
         )
         self.message_handler = instance
         self.disp.log_debug("Message handler instance updated")
+
+    def update_delay_between_sends(self, delay_seconds: float = 0) -> None:
+        """Function in charge of updating the artificial delay  between the discord status message updates
+
+        Args:
+            delay_seconds (float, optional): The time to wait between 2 status updates. Defaults to 0.
+        """
+        if not isinstance(delay_seconds, (float, int)):
+            self.disp.log_warning(
+                f"{WARNING_COLOUR}Provided delay is not a number, ignoring{RESET_COLOUR}"
+            )
+            return
+        if delay_seconds < 0:
+            self.disp.log_warning(
+                f"{WARNING_COLOUR}Provided delay is lower than 0, defaulting to '{DELAY_BETWEEN_MESSAGE_SENDS_SECONDS}' seconds{RESET_COLOUR}"
+            )
+            self._artificial_delay_seconds = DELAY_BETWEEN_MESSAGE_SENDS_SECONDS
+            return
+        self.disp.log_info(
+            f"{INFO_COLOUR}Delay has been set to: '{delay_seconds}' seconds{RESET_COLOUR}"
+        )
+        self._artificial_delay_seconds = delay_seconds
 
     def shutdown(self) -> None:
         """Function in charge of shutting down the bot.
@@ -675,6 +699,14 @@ class DiscordBot:
         )
         return SUCCESS
 
+    def _sleep_between_message_updates(self) -> None:
+        """Wait a specified amount of time before proceeding to the next step."""
+        if self._artificial_delay_seconds > 0:
+            self.disp.log_info(
+                f"{INFO_COLOUR}Artificially waiting {self._artificial_delay_seconds} seconds before proceeding to the next update.{RESET_COLOUR}"
+            )
+            sleep(self._artificial_delay_seconds)
+
     async def _refresh_message_statuses(self) -> None:
         """
         Function in charge of refreshing or sending messages to the discord server.
@@ -688,6 +720,7 @@ class DiscordBot:
             self.disp.log_error(MSG_ERROR_WEBSITE_UPDATE_FAILED)
             return
         for message in message_update:
+            self._sleep_between_message_updates()
             if not message.message_id:
                 status: int = await self._send_process(message)
                 self.disp.log_debug(f"Message sending process: {status}")

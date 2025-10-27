@@ -52,6 +52,9 @@ INLINE_FIELDS: bool = True
 DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))
 DATABASE_NAME: str = "database.sqlite3"
 
+# This is a way to set an artificial lag between each website update in order to not risk getting rate limited in the message updates
+DELAY_BETWEEN_MESSAGE_SENDS_SECONDS: float = 0
+
 # Prepend message shown before an embed's content. Controls what (if any)
 # text is sent alongside an embed when output mode is EMBED:
 #  - None => do not send any prepended text (only the embed will be sent)
@@ -75,6 +78,7 @@ DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED: bool = False
 TOKEN_KEY: str = "TOKEN"
 CONFIG_FILE_KEY: str = "CONFIG_FILE"
 OUTPUT_MODE_KEY: str = "OUTPUT_MODE"
+ARTIFICIAL_DELAY_KEY: str = "ARTIFICIAL_DELAY"
 
 # Discord message newline
 DISCORD_MESSAGE_NEWLINE: str = "\n"
@@ -370,6 +374,14 @@ class DiscordMessage:
 MSG_RUNTIME_CRITICAL_INIT_ERROR: str = "Bot initialisation error"
 MSG_CRITICAL_DISABLE_MESSAGE_CONTENT: str = "Failed to disable message content intent, exiting."
 MSG_CRITICAL_NO_ACTIVE_CLIENT_INSTANCE: str = "No active client instance."
+MSG_CRITICAL_NO_SQL_HANDLER_INSTANCE: str = "No sql handler instances found"
+MSG_CRITICAL_NO_CONFIG_CONTENT: str = "No Configuration content found"
+MSG_CRITICAL_SQL_INITIALISATION_ERROR: str = "Failed to initialise the SQL class"
+MSG_CRITICAL_MISSING_CONFIG_FILE: str = "Missing configuration file."
+MSG_CRITICAL_CONFIG_FILE_NOT_FOUND: str = "Configuration file not found"
+MSG_CRITICAL_CONFIG_FILE_LOAD_ERROR: str = "Configuration file load error"
+MSG_CRITICAL_EMPTY_CONFIG_FILE: str = "Empty configuration file"
+MSG_CRITICAL_BADLY_FORMATED_JSON: str = "The provided data is not in the json format or is badly formated."
 # Message error
 MSG_ERROR_UPDATE_ERROR: str = ERROR_COLOUR + \
     "Failed to update message, skipping update"+RESET_COLOUR

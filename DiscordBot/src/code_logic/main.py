@@ -46,6 +46,7 @@ class Main:
         self.sqlite: Optional[SQL] = None
         self.bot: Optional[DiscordBot] = None
         self.msg_handler: Optional[MessageHandler] = None
+        self._artificial_delay: Optional[float] = None
 
     def __del__(self) -> None:
         """Cleanly stop the program and release resources.
@@ -94,6 +95,20 @@ class Main:
                 self.disp.log_debug(
                     f"No output mode provided in the environement file. Error: {e}. Current value: '{self.output_mode}'"
                 )
+            try:
+                _artificial_delay_str: str = HLP.get_environement_variable(
+                    CONST.ARTIFICIAL_DELAY_KEY
+                ).lower()
+                try:
+                    self._artificial_delay = float(_artificial_delay_str)
+                except ValueError as e:
+                    self.disp.log_debug(
+                        f"The provided delay is not a number, error: {type(e).__name__}: {str(e)}"
+                    )
+            except ValueError as e:
+                self.disp.log_debug(
+                    f"No artificial delay provided in the environement file. Error: {e}. Current value: '{self._artificial_delay}'"
+                )
 
         return CONST.SUCCESS
 
@@ -136,7 +151,9 @@ class Main:
             self.sqlite = tmp
             self.disp.log_info("Sqlite instance initialised")
         else:
-            raise RuntimeError("Failed to initialise the SQL class")
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_SQL_INITIALISATION_ERROR}{CONST.RESET_COLOUR}"
+            )
 
     def _load_messages(self) -> None:
         """Load and parse the JSON configuration file referenced by ``self.config_file``.
@@ -146,7 +163,9 @@ class Main:
                 not valid JSON.
         """
         if not self.config_file:
-            raise RuntimeError("Missing configuration file.")
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_MISSING_CONFIG_FILE}{CONST.RESET_COLOUR}"
+            )
         final_path: str = self.config_file
         if not os.path.isfile(final_path):
             self.disp.log_debug(
@@ -172,19 +191,26 @@ class Main:
                     final_path = path
                     break
             if final_path == "":
-                raise RuntimeError("Configuration file not found")
+                raise RuntimeError(
+                    f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_CONFIG_FILE_NOT_FOUND}{CONST.RESET_COLOUR}"
+                )
         try:
             with open(final_path, "r", encoding="utf-8") as f:
                 data = f.read()
         except (OSError) as e:
-            raise RuntimeError("Configuration file load error") from e
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_CONFIG_FILE_LOAD_ERROR}{CONST.RESET_COLOUR}"
+            ) from e
         if len(data) == 0:
-            raise RuntimeError("Empty configuration file")
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_EMPTY_CONFIG_FILE}{CONST.RESET_COLOUR}"
+            )
         try:
             json_data = json.loads(data)
         except (json.JSONDecodeError, TypeError) as e:
             raise RuntimeError(
-                "The provided data is not in the json format or is badly formated.") from e
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_BADLY_FORMATED_JSON}{CONST.RESET_COLOUR}"
+            ) from e
         self.disp.log_debug("Configuration loaded")
         self.config_content = json_data
 
@@ -212,9 +238,13 @@ class Main:
         self.disp.log_info("Bot Initialised")
         self.disp.log_info("Initialising the message handler")
         if not self.sqlite:
-            raise RuntimeError("No sql handler instances found")
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_NO_SQL_HANDLER_INSTANCE}{CONST.RESET_COLOUR}"
+            )
         if not self.config_content:
-            raise RuntimeError("No Configuration content found")
+            raise RuntimeError(
+                f"{CONST.CRITICAL_COLOUR}{CONST.MSG_CRITICAL_NO_CONFIG_CONTENT}{CONST.RESET_COLOUR}"
+            )
         self.msg_handler = MessageHandler(
             self.sqlite,
             self.config_content,
@@ -273,6 +303,8 @@ class Main:
             self.token,
             self.debug
         )
+        if self._artificial_delay:
+            self.bot.update_delay_between_sends(self._artificial_delay)
         self.disp.log_debug("Bot initialised")
         return HLP.await_async_function_from_synchronous(partial(self.async_main))
 
@@ -389,8 +421,9 @@ def start_wrapper() -> None:
     DEBUG = DATA[0]
     DELAY = DATA[1]
     OUTPUT_MODE = DATA[2]
-    print(f"DATA={DATA}, DEBUG={DEBUG}, DELAY={DELAY}, OUTPUT_MODE={OUTPUT_MODE}")
-    print("\n\n\n\n")
+    HLP.DISP.log_debug(
+        f"DATA={DATA}, DEBUG={DEBUG}, DELAY={DELAY}, OUTPUT_MODE={OUTPUT_MODE}"
+    )
     MI = Main(delay=DELAY, output_mode=OUTPUT_MODE, debug=DEBUG)
     sys.exit(MI.main())
 
