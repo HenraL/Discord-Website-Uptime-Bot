@@ -90,6 +90,10 @@ class DiscordBot:
         else:
             self.disp.log_error(MSG_ERROR_NO_ACTIVE_CLIENT)
 
+    async def _on_ready_wrapper(self) -> None:
+        """Internal async hook that forwards to the real handler."""
+        self.on_ready()
+
     def update_message_handler_instance(self, instance: MessageHandler) -> None:
         """Function in charge of updating the instance for the Message Handler class.
 
