@@ -5,19 +5,26 @@ Discord client and provides methods used by the higher-level program
 to initialise and run the bot.
 """
 
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, Any
 from datetime import datetime
 
 import discord
 from discord import Embed, Color
 from discord.ext import tasks
 
+
 from display_tty import Disp
 
 from .message_handler import MessageHandler
 
 from ..program_globals.helpers import initialise_logger
-from ..program_globals.constants import DiscordMessage, SUCCESS, ERROR, OutputMode, WebsiteStatus, EMBED_COLOUR, STATUS_EMOJI, MAX_ALLOWED_EMBEDDED_FIELDS, MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS, MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS, INLINE_FIELDS, DISCORD_MESSAGE_NEWLINE, DISCORD_MESSAGE_BEGIN_FOOTER, DISCORD_MESSAGE_END_FOOTER, DISCORD_EMBEDING_MESSAGE, DISCORD_PERMISSIONS_EXPLANATION
+from ..program_globals.constants import DiscordMessage, SUCCESS, ERROR, \
+    OutputMode, WebsiteStatus, EMBED_COLOUR, STATUS_EMOJI, \
+    MAX_ALLOWED_EMBEDDED_FIELDS, MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS, MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS, \
+    INLINE_FIELDS, \
+    DISCORD_MESSAGE_NEWLINE, DISCORD_MESSAGE_BEGIN_FOOTER, DISCORD_MESSAGE_END_FOOTER, \
+    DISCORD_EMBEDING_MESSAGE, DISCORD_PERMISSIONS_EXPLANATION, DISCORD_MESSAGE_CONTENT_INTENT_ERROR, \
+    DISCORD_DEFAULT_MESSAGE_CONTENT, DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED
 
 
 class DiscordBot:
@@ -44,10 +51,31 @@ class DiscordBot:
         self.discord_intents: Optional[discord.Intents] = None
         self.discord_client: Optional[discord.Client] = None
         self._update_loop: Optional[tasks.Loop] = None
+        self._discord_default_message_content_enabled: bool = DISCORD_DEFAULT_MESSAGE_CONTENT
 
     def __del__(self) -> None:
         """Ensure the bot is shut down during object destruction."""
         self.shutdown()
+
+    def initialise(self) -> None:
+        """Function in charge of setting up the connection for the interraction with the discord api.
+        """
+        self.discord_intents = discord.Intents.default()
+        self.discord_intents.messages = True
+        self.discord_intents.guilds = True
+        self.discord_intents.message_content = bool(
+            self._discord_default_message_content_enabled
+        )
+        if self.discord_intents is not None:
+            self.discord_client = discord.Client(
+                intents=self.discord_intents
+            )
+            self.discord_client.event(self._on_ready_wrapper)
+            self.disp.log_debug(
+                "Discord client initialised and event registered."
+            )
+            return
+        self.disp.log_error("Discord client initialisation failed.")
 
     def on_ready(self) -> None:
         """Called when the bot is connected and ready."""
@@ -72,24 +100,6 @@ class DiscordBot:
         self.message_handler = instance
         self.disp.log_debug("Message handler instance updated")
 
-    def initialise(self) -> None:
-        """Function in charge of setting up the connection for the interraction with the discord api.
-        """
-        self.discord_intents = discord.Intents.default()
-        self.discord_intents.messages = True
-        self.discord_intents.guilds = True
-        self.discord_intents.message_content = True
-        if self.discord_intents is not None:
-            self.discord_client = discord.Client(
-                intents=self.discord_intents
-            )
-            self.discord_client.event(self._on_ready_wrapper)
-            self.disp.log_debug(
-                "Discord client initialised and event registered."
-            )
-            return
-        self.disp.log_error("Discord client initialisation failed.")
-
     def shutdown(self) -> None:
         """Function in charge of shutting down the bot.
         """
@@ -102,6 +112,57 @@ class DiscordBot:
         if self._update_loop and self._update_loop.is_running():
             self._update_loop.cancel()
 
+    def _log_missing_message_content_intent(self, recalled: bool = False) -> None:
+        if not recalled:
+            self.disp.log_warning(
+                "⚠️ MESSAGE_CONTENT privileged intent has been disabled for this runtime!"
+            )
+            self.disp.log_warning(
+                "The bot will continue running, but it cannot read or process message content."
+            )
+            self.disp.log_warning(
+                "If you need message content access, enable 'MESSAGE CONTENT INTENT' in your bot settings on the Discord Developer Portal."
+            )
+        else:
+            self.disp.log_debug(
+                "Skipping repeated MESSAGE_CONTENT intent warning (already disabled this session)."
+            )
+
+    def _log_retrying_message(self) -> None:
+        self.disp.log_warning("Attempt failed, retrying once...")
+
+    def _log_abandoning_message(self, err: Optional[str] = None) -> None:
+        self.disp.log_error(
+            "Well, something is definitely wrong, because it failed on the second time to, abandoning."
+        )
+        if err:
+            self.disp.log_debug(f"[error: '{type(err).__name__}':'{err}']")
+            self.disp.log_error(f"Second attempt error: {str(err)}")
+        self._log_permissions_message()
+
+    def _log_permissions_message(self) -> None:
+        self.disp.log_error(
+            "Have you checked that your agent (the sender: bot/user/etc) has the following permissions:"
+        )
+        for i in DISCORD_PERMISSIONS_EXPLANATION:
+            self.disp.log_error(f"{i}")
+
+    def _log_discord_message_intent_error(self, pre_message: Optional[str] = None, error: Optional[Any] = None) -> None:
+        if pre_message:
+            self.disp.log_critical(pre_message)
+        if error:
+            self.disp.log_error(
+                f"[error: '{type(error).__name__}':'{str(error)}']"
+            )
+        self.disp.log_error(DISCORD_MESSAGE_CONTENT_INTENT_ERROR)
+        if pre_message:
+            self.disp.log_critical(pre_message)
+
+    def _get_message_colour(self, message_status: Optional[WebsiteStatus]) -> Color:
+        if message_status in EMBED_COLOUR:
+            return EMBED_COLOUR[message_status]
+        return Color.purple()
+
     async def _get_channel_name(self, discord_message: DiscordMessage) -> str:
         """Return the name of the channel corresponding to the message's channel ID."""
         if not self.discord_client:
@@ -113,21 +174,24 @@ class DiscordBot:
             self.disp.log_warning("No channel ID found in message object.")
             return "<no-channel>"
 
+        _channel_error: str = f"<no-name:{channel_id}>"
+        _channel_missing: str = f"<missing:{channel_id}>"
+        self.disp.log_debug(f"_channel_error: {_channel_error}")
+        self.disp.log_debug(f"_channel_missing: {_channel_missing}")
         channel = self.discord_client.get_channel(channel_id)
         if channel is None:
-            try:
-                channel = await self.discord_client.fetch_channel(channel_id)
-            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
+            channel: Union[None, Any] = await self._attempt_channel_fetch(channel_id)
+            if not channel:
                 self.disp.log_warning(
-                    f"Could not fetch channel ({channel_id}): {e}"
+                    f"Could not fetch channel ({channel_id})"
                 )
-                return f"<missing:{channel_id}>"
-        return getattr(channel, "name", f"<no-name:{channel_id}>")
-
-    def _get_message_colour(self, message_status: Optional[WebsiteStatus]) -> Color:
-        if message_status in EMBED_COLOUR:
-            return EMBED_COLOUR[message_status]
-        return Color.purple()
+                return _channel_missing
+            if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+                self.disp.log_error(
+                    "Channel is not a TextChannel or Thread. Cannot send messages."
+                )
+                return _channel_error
+        return getattr(channel, "name", _channel_error)
 
     def _get_website_title(self, message_data: DiscordMessage) -> str:
         final_message: str = ""
@@ -232,24 +296,6 @@ class DiscordBot:
         self.disp.log_debug(f"Embedding content: '{embed.to_dict()}'")
         return embed
 
-    def _log_permissions_message(self) -> None:
-        self.disp.log_error(
-            "Have you checked that your agent (the sender: bot/user/etc) has the following permissions:"
-        )
-        for i in DISCORD_PERMISSIONS_EXPLANATION:
-            self.disp.log_error(f"{i}")
-
-    def _log_retrying_message(self) -> None:
-        self.disp.log_warning("Attempt failed, retrying once...")
-
-    def _log_abandoning_message(self, err: Optional[str] = None) -> None:
-        self.disp.log_error(
-            "Well, something is definitely wrong, because it failed on the second time to, abandoning."
-        )
-        if err:
-            self.disp.log_error(f"Second attempt error: {str(err)}")
-        self._log_permissions_message()
-
     def _get_correct_prepended_embedding_message(self, discord_message: DiscordMessage) -> Union[str, None]:
         final_message: Union[str, None] = None
         if DISCORD_EMBEDING_MESSAGE == "":
@@ -262,24 +308,60 @@ class DiscordBot:
             self.disp.log_debug(f"Prepending message: {final_message}")
         return final_message
 
-    async def _get_channel_connection(self, channel_id: int, recall: bool = True) -> Union[None, discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel]:
+    async def _attempt_channel_fetch(self, channel_id: int, recall: bool = True) -> Union[None, Any]:
+        if not self.discord_client:
+            self.disp.log_error("Discord client not initialized.")
+            return None
+        try:
+            if self._discord_default_message_content_enabled != DISCORD_DEFAULT_MESSAGE_CONTENT:
+                self._log_missing_message_content_intent(recalled=(not recall))
+            channel = await self.discord_client.fetch_channel(channel_id)
+            self.disp.log_debug(f"channel content: {channel}")
+            return channel
+        except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
+            self.disp.log_error(
+                f"Failed to fetch channel {channel_id}: {e} [error: '{type(e).__name__}':'{e}']"
+            )
+            if recall:
+                self._log_retrying_message()
+                return await self._get_channel_connection(channel_id, recall=False)
+            self._log_abandoning_message(str(e))
+            return None
+        except discord.PrivilegedIntentsRequired as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
+            self.disp.log_warning(
+                f"Caught error: ({type(e).__name__}):{str(e)}"
+            )
+            self._log_missing_message_content_intent()
+            if not self.discord_intents:
+                self.disp.log_error(
+                    "Could not fine the discord intents status, abandoning"
+                )
+                return None
+            if hasattr(self.discord_intents, "message_content"):
+                self.discord_intents.message_content = False
+                self._discord_default_message_content_enabled = False
+            self.disp.log_warning(
+                f"Runtime change: DISCORD_DEFAULT_MESSAGE_CONTENT={DISCORD_DEFAULT_MESSAGE_CONTENT}, "
+                f"discord_intents.message_content={self.discord_intents.message_content}"
+            )
+            if DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED:
+                self.disp.log_warning(
+                    "Configuration has been changed and client reboot (DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED) has been set to true"
+                )
+                self.disp.log_warning("Restarting client")
+                self.shutdown()
+                self.initialise()
+            return await self._attempt_channel_fetch(channel_id, recall=True)
+
+    async def _get_channel_connection(self, channel_id: int, recall: bool = True) -> Union[None, Any]:
         if not self.discord_client:
             self.disp.log_error("Discord client not initialized.")
             return None
 
         channel = self.discord_client.get_channel(channel_id)
         if channel is None:
-            try:
-                channel = await self.discord_client.fetch_channel(channel_id)
-            except (discord.InvalidData, discord.HTTPException, discord.NotFound, discord.Forbidden) as e:
-                self.disp.log_error(
-                    f"Failed to fetch channel {channel_id}: {e}"
-                )
-                if recall:
-                    self._log_retrying_message()
-                    return await self._get_channel_connection(channel_id, recall=False)
-                self._log_abandoning_message(str(e))
-                return None
+            return await self._attempt_channel_fetch(channel_id, recall=recall)
         return channel
 
     async def _get_discord_message(self, channel_id: int, message_id: int, recall: bool = True) -> Union[None, discord.Message]:
@@ -287,8 +369,9 @@ class DiscordBot:
             self.disp.log_error("Discord client not initialized.")
             return None
 
-        channel: Union[None, discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel] = await self._get_channel_connection(channel_id)
+        channel: Union[None, discord.Thread, discord.abc.PrivateChannel] = await self._get_channel_connection(channel_id)
         if not channel:
+            self.disp.log_debug(f"channel: {channel}")
             self.disp.log_error(
                 f"Failed to obtain an instance of channel: {channel_id}"
             )
@@ -306,21 +389,23 @@ class DiscordBot:
             return msg
         except discord.NotFound as e:
             self.disp.log_warning(
-                f"Message {message_id} not found in channel {channel_id}. It might have been deleted."
+                f"Message {message_id} not found in channel {channel_id}. It might have been deleted. [error: '{type(e).__name__}':'{e}']"
             )
             if recall:
                 self._log_retrying_message()
                 return await self._get_discord_message(channel_id, message_id, recall=False)
             self._log_abandoning_message(str(e))
             return None
-        except discord.Forbidden:
+        except discord.Forbidden as e:
             self.disp.log_error(
-                f"Missing permissions to edit message {message_id} in channel {channel_id}."
+                f"Missing permissions to edit message {message_id} in channel {channel_id}. [error: '{type(e).__name__}':'{e}']"
             )
             self._log_permissions_message()
             return None
         except discord.HTTPException as e:
-            self.disp.log_error(f"Failed to edit message {message_id}: {e}")
+            self.disp.log_error(
+                f"Failed to edit message {message_id}: {e} [error: '{type(e).__name__}':'{e}']"
+            )
             if recall:
                 self._log_retrying_message()
                 return await self._get_discord_message(channel_id, message_id, recall=False)
@@ -335,15 +420,18 @@ class DiscordBot:
 
         channel_id: Optional[int] = discord_message.message_channel
         if channel_id is None:
+            self.disp.log_debug(f"Channel_id: {channel_id}")
             self.disp.log_error("Discord message missing channel ID.")
             return ERROR
 
         channel: Union[discord.guild.GuildChannel, discord.Thread, discord.abc.PrivateChannel, None] = await self._get_channel_connection(channel_id)
         if channel is None:
+            self.disp.log_debug(f"Channel: {channel}")
             self.disp.log_error(f"Failed to fetch channel {channel_id}")
             return ERROR
 
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
+            self.disp.log_debug(f"channel: {channel}")
             self.disp.log_error(
                 "Channel is not a TextChannel or Thread. Cannot send messages."
             )
@@ -373,12 +461,14 @@ class DiscordBot:
                 f"Sent message '{discord_message.message_human}' to channel '{channel_id}' (msg_id={sent_msg.id})."
             )
             return SUCCESS
-        except discord.Forbidden:
+        except discord.Forbidden as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_error(
                 f"Missing permissions to send message in channel {channel_id}."
             )
             self._log_permissions_message()
         except discord.HTTPException as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_error(
                 f"Failed to send message in channel {channel_id}: {e}"
             )
@@ -401,6 +491,9 @@ class DiscordBot:
         message_id: Optional[int] = discord_message.message_id
 
         if not channel_id or not message_id:
+            self.disp.log_debug(
+                f"channel_id={channel_id}, message_id={message_id}"
+            )
             self.disp.log_error(
                 "Discord message missing channel or message ID."
             )
@@ -408,6 +501,7 @@ class DiscordBot:
 
         message: Union[discord.Message, None] = await self._get_discord_message(channel_id, message_id)
         if message is None:
+            self.disp.log_debug(f"message: {message}")
             self.disp.log_error(f"Failed to fetch channel {channel_id}")
             return ERROR
 
@@ -433,25 +527,29 @@ class DiscordBot:
                 f"Updated message (id={message_id}) in channel '{channel_id}' with new content."
             )
             return SUCCESS
-        except discord.NotFound:
+        except discord.NotFound as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_warning(
                 f"Message {message_id} not found in channel {channel_id}. It might have been deleted."
             )
             if recall:
                 self.disp.log_warning("Message not found, sending instead...")
                 return await self._send_process(discord_message, recall=recall)
-        except discord.Forbidden:
+        except discord.Forbidden as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_error(
                 f"Missing permissions to edit message {message_id} in channel {channel_id}."
             )
             self._log_permissions_message()
         except discord.HTTPException as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_error(f"Failed to edit message {message_id}: {e}")
             if recall:
                 self._log_retrying_message()
                 return await self._update_message(discord_message, recall=False)
             self._log_abandoning_message(str(e))
         except TypeError as e:
+            self.disp.log_debug(f"[error: '{type(e).__name__}':'{e}']")
             self.disp.log_error(
                 f"A type error occurred, message edit failed, {message_id}: {e}"
             )
@@ -468,12 +566,18 @@ class DiscordBot:
             return False
 
         if not channel_id or not message_id:
+            self.disp.log_debug(
+                f"channel_id={channel_id}, message_id={message_id}"
+            )
             self.disp.log_error(
                 "Discord message missing channel or message ID."
             )
             return False
 
         message: Union[discord.Message, None] = await self._get_discord_message(channel_id, message_id)
+        self.disp.log_debug(
+            f"[message: '{type(message).__name__}':'{message}']"
+        )
         if not message:
             self.disp.log_error(
                 "Attempting to retrieve the message failed, presuming that it does not exist."
@@ -490,18 +594,21 @@ class DiscordBot:
             return ERROR
         # No message was ever sent, sending the first one
         status: int = await self._send_message(message, recall=recall)
+        self.disp.log_debug(f"status={status}")
         if status != SUCCESS:
             self.disp.log_error(
                 "Failed to send message, skipping update"
             )
             return ERROR
         status: int = await self.message_handler.refresh_message_id(message)
+        self.disp.log_debug(f"status={status}")
         if status != SUCCESS:
             self.disp.log_warning(
                 f"Failed to update the website's '(id: {message.website_id})' message_id '({message.message_id})' in the database."
             )
             return ERROR
         channel_name: str = await self._get_channel_name(message)
+        self.disp.log_debug(f"channel_name:{channel_name}")
         self.disp.log_info(
             f"Website status '({message.message_human})' sent to channel '{channel_name}'."
         )
@@ -525,10 +632,14 @@ class DiscordBot:
             return
         for message in message_update:
             if not message.message_id:
-                await self._send_process(message)
+                status: int = await self._send_process(message)
+                self.disp.log_debug(f"Message sending process: {status}")
                 continue
-            if not await self._check_message_presence(message.message_channel, message.message_id):
-                await self._send_message(message)
+            message_present: bool = await self._check_message_presence(message.message_channel, message.message_id)
+            self.disp.log_debug(f"message_present: {message_present}")
+            if not message_present:
+                status: int = await self._send_message(message)
+                self.disp.log_debug(f"Message sending process: {status}")
                 continue
             # A message exists, updating it
             status: int = await self._update_message(message)
@@ -562,4 +673,12 @@ class DiscordBot:
             self.disp.log_info(
                 f"Bot loop started with {interval_seconds}s interval."
             )
-            await self.discord_client.start(self.token)
+            try:
+                await self.discord_client.start(self.token)
+            except discord.PrivilegedIntentsRequired as e:
+                _init_error_msg: str = "Bot initialisation error"
+                self._log_discord_message_intent_error(
+                    pre_message=_init_error_msg,
+                    error=e
+                )
+                raise RuntimeError(_init_error_msg) from e
