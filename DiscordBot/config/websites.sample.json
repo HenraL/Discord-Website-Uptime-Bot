@@ -1,0 +1,21 @@
+[
+    {
+        "name": "Google",
+        "url": "https://google.com",
+        "channel": <channel_id>,
+        "expected_content": "<head>",
+        "expected_status": 200,
+        "case_sensitive": false,
+        "dead_checks": [
+            {
+                "keyword": "Server error",
+                "response": "PartiallyUp",
+                "case_sensitive": true
+            },
+            {
+                "keyword": "maintenance",
+                "response": "Down"
+            }
+        ]
+    }
+]
