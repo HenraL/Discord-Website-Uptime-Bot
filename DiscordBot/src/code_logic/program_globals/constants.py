@@ -165,6 +165,7 @@ EMBED_COLOUR: Dict[WebsiteStatus, Color] = {
 }
 
 # Table structure
+SQLITE_URL_MESSAGE_ID_NAME: str = "url"
 SQLITE_MESSAGES_MESSAGE_ID_NAME: str = "message_id"
 SQLITE_DEAD_CHECKS_MESSAGE_ID_NAME: str = "website_id"
 SQLITE_STATUS_MESSAGE_ID_NAME: str = "website_id"
@@ -176,7 +177,7 @@ SQLITE_TABLE_COLUMNS_MESSAGES: List[Tuple[str, str]] = [
     ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"),
     ("name", "TEXT"),
     (f"{SQLITE_MESSAGES_MESSAGE_ID_NAME}", "INTEGER UNIQUE NULL"),
-    ("url", "TEXT UNIQUE NOT NULL"),
+    (f"{SQLITE_URL_MESSAGE_ID_NAME}", "TEXT UNIQUE NOT NULL"),
     ("channel", "INTEGER NOT NULL"),
     ("expected_content", "TEXT NOT NULL"),
     ("expected_status", "INTEGER NOT NULL"),

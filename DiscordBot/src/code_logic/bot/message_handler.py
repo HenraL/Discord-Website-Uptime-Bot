@@ -642,7 +642,7 @@ class MessageHandler:
                 )
                 return self._check_website_status_and_content(website, dead_checks, mimic_browser=True, recall=False)
             self.disp.log_warning(
-                f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}"
+                f"{CONST.WARNING_COLOUR}Website '{_url}' is down.{CONST.RESET_COLOUR}"
             )
             return self._check_deadchecks(response, dead_checks, CONST.WS.DOWN)
         except requests.exceptions.RequestException:
@@ -971,6 +971,8 @@ class MessageHandler:
             int: CONST.SUCCESS or CONST.ERROR.
         """
         table: str = CONST.SQLITE_TABLE_NAME_MESSAGES
+        message_id: Optional[int] = None
+        _url = websites.url
         columns: Union[List[str], int] = await self.connection.get_table_column_names(table)
         if isinstance(columns, int):
             self.disp.log_error(
@@ -980,10 +982,36 @@ class MessageHandler:
         self.disp.log_debug(f"Table '{table}' columns: '{columns}'")
         columns_cleaned: List[str] = columns[1:-2]
         self.disp.log_debug(
-            f"Table '{table}' columns_cleaned: '{columns_cleaned}'")
+            f"Table '{table}' columns_cleaned: '{columns_cleaned}'"
+        )
+        self.disp.log_debug(
+            f"{CONST.DEBUG_COLOUR}Getting message id if any{CONST.RESET_COLOUR}"
+        )
+        self.disp.log_debug(
+            f"Checking presence of website: {_url}"
+        )
+        response: Union[int, List[Tuple[Any, Any]]] = await self.connection.get_data_from_table(
+            table=table,
+            column=[str(CONST.SQLITE_MESSAGES_MESSAGE_ID_NAME)],
+            where=f"{CONST.SQLITE_URL_MESSAGE_ID_NAME}='{_url}'",
+            beautify=False
+        )
+        self.disp.log_debug(f"Response: {response}")
+        if isinstance(response, list):
+            self.disp.log_debug(f"Response value: {response}")
+            if len(response) > 0 and isinstance(response[0], tuple):
+                self.disp.log_debug(f"Response[0] value: {response[0]}")
+                if len(response[0]) > 0 and isinstance(response[0][0], int):
+                    self.disp.log_debug(
+                        f"Response[0][0] value: {response[0][0]}"
+                    )
+                    message_id = response[0][0]
+        else:
+            self.disp.log_debug("Invalid response for query.")
+            sleep(10)
         data: List[Union[str, None, int, float]] = [
             websites.name,
-            None,
+            message_id,
             websites.url,
             str(websites.channel),
             websites.expected_content,
