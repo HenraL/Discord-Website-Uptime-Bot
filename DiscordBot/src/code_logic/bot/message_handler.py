@@ -5,11 +5,13 @@ monitored websites, ensures required database tables exist, and exposes
 helpers to check website status and content.
 """
 
-from typing import List, Tuple, Dict, Any, Optional, Union, Iterable, cast, overload
+from typing import List, Tuple, Dict, Any, Optional, Union, overload
 
 from datetime import datetime, timedelta, date, timezone
 
 from collections import defaultdict
+
+from time import sleep
 
 import re
 import requests
@@ -50,17 +52,29 @@ class MessageHandler:
         self.cleaned_urls: Dict[str, str] = {}
         self.disp.update_disp_debug(self.debug)
 
-    def set_output_type(self, mode: Optional[CONST.OutputMode]) -> None:
+    def set_output_type(self, mode: Optional[CONST.OutputMode] = None) -> None:
+        """Update the expected output mode used for the discord message in the class 
+
+        Args:
+            mode (Optional[CONST.OutputMode], optional): The output mode to set. Default: None
+        """
         if not mode or mode not in CONST.OutputMode:
             self.output_mode = CONST.OM.RAW
+            self.disp.log_debug(f"Got mode: {mode}")
             self.disp.log_warning(
-                f"The provided mode is unknown, defaulting to {str(self.output_mode)}"
+                f"{CONST.WARNING_COLOUR}The provided mode is unknown, defaulting to {str(self.output_mode)}{CONST.RESET_COLOUR}"
             )
+            sleep(1)
             return
         self.disp.log_info(f"Output mode set to {mode.name}")
         self.output_mode = mode
 
     def get_output_mode(self) -> CONST.OutputMode:
+        """Return the mode that is set for the discord message.
+
+        Returns:
+            CONST.OutputMode: The mode set in the class
+        """
         return self.output_mode
 
     def _clean_url(self, raw_url: str) -> str:
@@ -341,7 +355,7 @@ class MessageHandler:
         final_data = []
         for item in [_legend, _legend_end, _compiled_data]:
             if isinstance(item, List):
-                final_data.extend(cast(Iterable, item))
+                final_data.extend(item)
             else:
                 final_data.append(item)
         if self.output_mode == CONST.OM.EMBED:
@@ -385,7 +399,7 @@ class MessageHandler:
         final_meta_data = []
         for item in [_last_updated, _padding, _extra_data]:
             if isinstance(item, List):
-                final_meta_data.extend(cast(Iterable, item))
+                final_meta_data.extend(item)
             else:
                 final_meta_data.append(item)
         if self.output_mode == CONST.OM.EMBED:
@@ -487,7 +501,7 @@ class MessageHandler:
         final_string = []
         for item in [status_string, raw_url, data]:
             if isinstance(item, List):
-                final_string.extend(cast(Iterable, item))
+                final_string.extend(item)
             else:
                 final_string.append(item)
         if self.output_mode == CONST.OM.EMBED:
@@ -583,8 +597,14 @@ class MessageHandler:
         _keyword: str = website.expected_content
         _case_sensitive: bool = website.case_sensitive
         try:
+            self.disp.log_debug(
+                f"{CONST.DEBUG_COLOUR}Querying url: {_url}...{CONST.RESET_COLOUR}"
+            )
             # Timeout after 5 seconds
             response = requests.get(_url, timeout=5)
+            self.disp.log_debug(
+                f"{CONST.DEBUG_COLOUR}response content: {response}...{CONST.RESET_COLOUR}"
+            )
             if response.status_code == _status:
                 # Normalize whitespace and lowercase
                 found: bool = self._check_if_keyword_in_content(
@@ -594,14 +614,21 @@ class MessageHandler:
                 )
                 self.disp.log_debug(f"Keyword found: {found}")
                 if found:
-                    self.disp.log_info(f"Website '{_url}' is up.")
+                    self.disp.log_info(
+                        f"{CONST.INFO_COLOUR}Website '{_url}' is up.{CONST.RESET_COLOUR}"
+                    )
                     return self._check_deadchecks(response, dead_checks, CONST.WS.UP)
-                self.disp.log_warning(f"Website '{_url}' is partially up.")
+                self.disp.log_warning(
+                    f"{CONST.WARNING_COLOUR}Website '{_url}' is partially up.{CONST.RESET_COLOUR}"
+                )
                 return self._check_deadchecks(response, dead_checks, CONST.WS.PARTIALLY_UP)
-            self.disp.log_warning(f"Websie '{_url}' is down.")
+            self.disp.log_warning(
+                f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}")
             return self._check_deadchecks(response, dead_checks, CONST.WS.DOWN)
         except requests.exceptions.RequestException:
-            self.disp.log_warning(f"Websie '{_url}' is down.")
+            self.disp.log_warning(
+                f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}"
+            )
             return CONST.WS.DOWN
 
     async def _check_connection(self, website: CONST.WebsiteNode) -> Union[CONST.QueryStatus, int]:
@@ -647,13 +674,15 @@ class MessageHandler:
             return None
         table_id_cleaned: Optional[int] = None
         if isinstance(table_content, List):
-            if isinstance(table_content[0], Tuple):
-                if isinstance(table_content[0][0], int):
+            if len(table_content) > 0 and isinstance(table_content[0], Tuple):
+                if len(table_content[0]) > 0 and isinstance(table_content[0][0], int):
                     table_id_cleaned = table_content[0][0]
-        self.disp.log_debug(f"table_id_cleaned: {table_id_cleaned}")
+        self.disp.log_debug(
+            f"{CONST.DEBUG_COLOUR}table_id_cleaned: {table_id_cleaned}{CONST.RESET_COLOUR}"
+        )
         if not table_id_cleaned:
             self.disp.log_error(
-                f"Expected to get a table id of type int but got '{type(table_id_cleaned)}', this could be because the url is not present in the '({source_table})'"
+                f"Expected to get a table id of type int but got '{type(table_id_cleaned)}', this could be because the url is not present in the '({source_table})' table"
             )
             return None
         return table_id_cleaned
@@ -859,7 +888,7 @@ class MessageHandler:
         )
         if isinstance(_class_node, list):
             _validate_dead_check_node: Union[List[CONST.DeadCheck], int] = self._validate_deadchecks(
-                cast(List[Dict[str, str | int]], _class_node)
+                _class_node
             )
             if isinstance(_validate_dead_check_node, List):
                 _wn.dead_checks = _validate_dead_check_node
@@ -924,9 +953,9 @@ class MessageHandler:
         columns_cleaned: List[str] = columns[1:-2]
         self.disp.log_debug(
             f"Table '{table}' columns_cleaned: '{columns_cleaned}'")
-        data: List[str] = [
+        data: List[Union[str, None, int, float]] = [
             websites.name,
-            "NULL",
+            None,
             websites.url,
             str(websites.channel),
             websites.expected_content,
@@ -967,10 +996,14 @@ class MessageHandler:
         self.disp.log_debug(
             f"Table '{dest_table}' columns_cleaned: '{columns_cleaned}'"
         )
-        buffer: List[List[str]] = []
+        buffer: List[List[Union[str, None, float, int]]] = []
         for index, item in enumerate(websites.dead_checks):
             self.disp.log_debug(f"Prepping deadcheck {index}: {item}")
-            data: List[str] = [
+            data: List[
+                Union[
+                    str, None, float, int
+                ]
+            ] = [
                 table_id_cleaned_str,
                 item.keyword,
                 str(item.response.value),
@@ -1023,7 +1056,7 @@ class MessageHandler:
             )
             return CONST.ERROR
         self.disp.log_debug(f"Prepping status check {status_check}")
-        data: List[str] = [
+        data: List[Union[str, None, float, int]] = [
             str(status_check.website_id),
             str(status_check.status.value),
         ]
