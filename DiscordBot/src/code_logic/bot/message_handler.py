@@ -579,7 +579,7 @@ class MessageHandler:
         )
         return default
 
-    def _check_website_status_and_content(self, website: CONST.WebsiteNode, dead_checks: List[CONST.DeadCheck]) -> CONST.WebsiteStatus:
+    def _check_website_status_and_content(self, website: CONST.WebsiteNode, dead_checks: List[CONST.DeadCheck], mimic_browser: bool = False, recall: bool = True) -> CONST.WebsiteStatus:
         """Check the website status and content.
 
         The check is case-insensitive, ignores extra whitespace and allows
@@ -588,6 +588,8 @@ class MessageHandler:
         Args:
             url (str): The url to query.
             keyword (str): The keyword to search for in the page.
+            mimic_browser (bool, optional): Imitate a browser by inserting browser like headers in the query (can be updated in the constants.py file). Default: False
+            recall (bool, optional): If the query failed, attempt a second time before providing the final verdict. Default: True
 
         Returns:
             str: Status string describing the result.
@@ -596,12 +598,24 @@ class MessageHandler:
         _status: int = website.expected_status
         _keyword: str = website.expected_content
         _case_sensitive: bool = website.case_sensitive
+        _query_timeout: int = CONST.QUERY_TIMEOUT
+        _headers: Dict[str, str] = CONST.HEADER_IMPERSONALISATION
         try:
-            self.disp.log_debug(
-                f"{CONST.DEBUG_COLOUR}Querying url: {_url}...{CONST.RESET_COLOUR}"
-            )
-            # Timeout after 5 seconds
-            response = requests.get(_url, timeout=5)
+            self.disp.log_debug(f"Timeout is set to : {_query_timeout}")
+            if not mimic_browser:
+                self.disp.log_debug(
+                    f"{CONST.DEBUG_COLOUR}Querying url: {_url}...{CONST.RESET_COLOUR}"
+                )
+                response = requests.get(url=_url, timeout=_query_timeout)
+            else:
+                self.disp.log_debug(
+                    f"{CONST.DEBUG_COLOUR}Querying url: {_url} with headers {_headers}...{CONST.RESET_COLOUR}"
+                )
+                response = requests.get(
+                    url=_url,
+                    timeout=_query_timeout,
+                    headers=_headers
+                )
             self.disp.log_debug(
                 f"{CONST.DEBUG_COLOUR}response content: {response}...{CONST.RESET_COLOUR}"
             )
@@ -622,10 +636,24 @@ class MessageHandler:
                     f"{CONST.WARNING_COLOUR}Website '{_url}' is partially up.{CONST.RESET_COLOUR}"
                 )
                 return self._check_deadchecks(response, dead_checks, CONST.WS.PARTIALLY_UP)
+            if recall:
+                self.disp.log_warning(
+                    f"{CONST.WARNING_COLOUR}Query attempt failed, retrying while mimiking a browser.{CONST.RESET_COLOUR}"
+                )
+                return self._check_website_status_and_content(website, dead_checks, mimic_browser=True, recall=False)
             self.disp.log_warning(
-                f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}")
+                f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}"
+            )
             return self._check_deadchecks(response, dead_checks, CONST.WS.DOWN)
         except requests.exceptions.RequestException:
+            self.disp.log_warning(
+                "The query raised an error, this means the website is most likely down."
+            )
+            if recall:
+                self.disp.log_warning(
+                    f"{CONST.WARNING_COLOUR}Query attempt failed, retrying while mimiking a browser just to make sure that the website is really down.{CONST.RESET_COLOUR}"
+                )
+                return self._check_website_status_and_content(website, dead_checks, mimic_browser=True, recall=False)
             self.disp.log_warning(
                 f"{CONST.WARNING_COLOUR}Websie '{_url}' is down.{CONST.RESET_COLOUR}"
             )
