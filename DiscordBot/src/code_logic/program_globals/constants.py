@@ -3,19 +3,25 @@
 Contains fixed values (error codes, database table definitions, date
 formats and JSON schema descriptors) used across the application.
 """
-import os
 import dataclasses
 from typing import List, Tuple, Dict, Type, TypeAlias, Optional, Union
 
-from pathlib import Path
-
-import uuid
-
-from platform import system as ps
 
 from enum import Enum
 
 from discord import Color
+
+from .config import \
+    DISCORD_EMBEDING_MESSAGE, DISCORD_DEFAULT_MESSAGE_CONTENT, DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED, \
+    CWD, \
+    DEFAULT_CASE_SENSITIVITY, \
+    RESPONSE_LOG_SIZE, MIN_DELAY_BETWEEN_CHECKS, MAX_ALLOWED_EMBEDDED_FIELDS, MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS, MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS, INLINE_FIELDS, \
+    HEADER_IMPERSONALISATION, QUERY_TIMEOUT, \
+    DATABASE_PATH, DATABASE_NAME, \
+    UP, DOWN, PARTIALLY_UP, UNKNOWN_STATUS, \
+    UP_EMOJI, PARTIALLY_UP_EMOJI, DOWN_EMOJI, UNKNOWN_STATUS_EMOJI, \
+    TIMEFRAME_EMOJI_DAY, TIMEFRAME_EMOJI_MONTH, TIMEFRAME_EMOJI_WEEK, TIMEFRAME_EMOJI_YEAR, \
+    EMBED_COLOUR_UP, EMBED_COLOUR_DOWN, EMBED_COLOUR_PARTIALLY_UP, EMBED_COLOUR_UNKNOWN_STATUS
 
 # Program status codes
 ERROR: int = 1
@@ -25,136 +31,8 @@ SUCCESS: int = 0
 VERSION: str = "2.0.0"
 AUTHOR: str = "(c) Henry Letellier"
 
-# Current working directory
-CWD: str = os.path.abspath(str(Path(__file__).parent.parent.parent.parent))
-
-# default value for the case sensitivity check option.
-DEFAULT_CASE_SENSITIVITY: bool = False
-
-# This corresponds to the number of characters from the website request that are shown in the log, set to -1 for all.
-RESPONSE_LOG_SIZE: int = 500
-# This is the hard minimum allowed between each discord loop to avoid getting rate limited by the api
-MIN_DELAY_BETWEEN_CHECKS: float = 10
-# This is discord's hard value regarding the maximum amount of fields that can be added in an embedding
-MAX_ALLOWED_EMBEDDED_FIELDS: int = 25
-# This is discord's hard value regarding the maximum amount of characters allowed in the key field
-MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS: int = 255
-# This is discord's hard value regarding the maximum amount of characters allowed in the value field
-MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS: int = 1024
-# This is discord's option for embeds in wether the field should be inlined or not.
-INLINE_FIELDS: bool = True
-
-# Website querying
-# This is the header that will be used if the request fails to try and impersonate a browser
-# This is a function in charge of faking the postman token
-
-
-def _generate_random_postman_token() -> str:
-    """Generate a random Postman-style token.
-
-    Returns a UUID4 string in the form "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    which matches the sample structure used elsewhere in the project.
-    """
-    token = str(uuid.uuid4())
-    return token
-
-
-# Bellow are header presets you can set in the HEADER_IMPERSONALISATION to see if this fixes the issue
-_FIREFOX_HEADER_MIN: Dict[str, str] = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Connection": "keep-alive",
-}
-
-_FIREFOX_HEADER_FULL: Dict[str, str] = {
-    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en,en-GB;q=0.8,en-US;q=0.5,en;q=0.3",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
-    "Connection": "keep-alive",
-    "Cookie": "doxygen_width=256; _ga=GA1.4.821560d8-97fc-e072-bcca-fb64489a8995; js=y",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Priority": "u=0, i"
-}
-
-_CHROME_HEADER_MIN: Dict[str, str] = {
-    "Connection": "keep-alive",
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-}
-
-_CHROME_HEADER_FULL: Dict[str, str] = {
-    "Connection": "keep-alive",
-    "sec-ch-ua": "\"Chromium\";v=\"140\", \"Not=A?Brand\";v=\"24\", \"Google Chrome\";v=\"140\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": ps(),
-    "Upgrade-Insecure-Requests": "1",
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-User": "?1",
-    "Sec-Fetch-Dest": "document",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
-    "Accept-Language": "en-GB,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,de-AT;q=0.6,de;q=0.5,en-US;q=0.4"
-}
-
-_CURL_HEADER_FULL: Dict[str, str] = {
-    "User-Agent": "curl/8.5.0",
-    "Accept": "*/*"
-}
-
-
-_POSTMAN_HEADER_MIN: Dict[str, str] = {
-    "User-Agent": "PostmanRuntime/7.49.0",
-    "Accept": "*/*"
-}
-
-
-_POSTMAN_HEADER_FULL: Dict[str, str] = {
-    "User-Agent": "PostmanRuntime/7.49.0",
-    "Accept": "*/*",
-    "Cache-Control": "no-cache",
-    "Postman-Token": _generate_random_postman_token(),
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive"
-}
-
-HEADER_IMPERSONALISATION: Dict[str, str] = _FIREFOX_HEADER_MIN
-
-# This is the maximum amount of time the request will wait before considering the connection dead if no response has been provided beforehand.
-QUERY_TIMEOUT: int = 5
-
-# Database info
-# This is where the sqlite database will be stored
-DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))
-DATABASE_NAME: str = "database.sqlite3"
-
 # This is a way to set an artificial lag between each website update in order to not risk getting rate limited in the message updates
 DELAY_BETWEEN_MESSAGE_SENDS_SECONDS: float = 0
-
-# Prepend message shown before an embed's content. Controls what (if any)
-# text is sent alongside an embed when output mode is EMBED:
-#  - None => do not send any prepended text (only the embed will be sent)
-#  - "" (empty string) => use the embed's description (e.g. website + status)
-#  - any other string => that string will be sent as content before the embed
-DISCORD_EMBEDING_MESSAGE: Optional[str] = None  # ""
-
-# Whether to request the privileged MESSAGE_CONTENT intent from Discord.
-# When True the bot will ask for message content access (allows reading
-# message content). Enabling this requires turning the intent on in the
-# Discord Developer Portal for the bot and may require a client restart.
-DISCORD_DEFAULT_MESSAGE_CONTENT: bool = False
-
-# If True, automatically restart the Discord client when runtime configuration
-# that affects the client's behaviour (for example toggling the
-# MESSAGE_CONTENT intent) is changed. Restarting ensures the new settings
-# are picked up without a full manual restart.
-DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED: bool = False
 
 # Env searched keys
 TOKEN_KEY: str = "TOKEN"
@@ -206,10 +84,10 @@ TIMEFRAME_WEEK: str = "week"
 TIMEFRAME_MONTH: str = "month"
 TIMEFRAME_YEAR: str = "year"
 TIMEFRAME_EMOJIS: Dict[str, str] = {
-    TIMEFRAME_DAY: ":clock1:",
-    TIMEFRAME_WEEK: ":calendar:",
-    TIMEFRAME_MONTH: ":crescent_moon:",
-    TIMEFRAME_YEAR: "🗃️"
+    TIMEFRAME_DAY: TIMEFRAME_EMOJI_DAY,
+    TIMEFRAME_WEEK: TIMEFRAME_EMOJI_WEEK,
+    TIMEFRAME_MONTH: TIMEFRAME_EMOJI_MONTH,
+    TIMEFRAME_YEAR: TIMEFRAME_EMOJI_YEAR
 }
 
 # Permissions message
@@ -240,12 +118,8 @@ DISCORD_PERMISSIONS_EXPLANATION: List[str] = [
     "",
     ""
 ]
-# website status
 
-UP: str = "Up"
-DOWN: str = "Down"
-PARTIALLY_UP: str = "Partially Up"
-UNKNOWN_STATUS: str = "Unknown Status"
+# website status
 
 
 class WebsiteStatus(Enum):
@@ -275,12 +149,6 @@ WEBSITE_STATUS: Dict[str, WebsiteStatus] = {
     "unknownstatus": WebsiteStatus.UNKNOWN_STATUS
 }
 
-# Status emoji's
-UP_EMOJI: str = ":green_circle:"
-PARTIALLY_UP_EMOJI: str = ":yellow_circle:"
-DOWN_EMOJI: str = ":red_circle:"
-UNKNOWN_STATUS_EMOJI: str = ":purple_circle:"
-
 STATUS_EMOJI: Dict[WebsiteStatus, str] = {
     WebsiteStatus.UP: UP_EMOJI,
     WebsiteStatus.PARTIALLY_UP: PARTIALLY_UP_EMOJI,
@@ -290,10 +158,10 @@ STATUS_EMOJI: Dict[WebsiteStatus, str] = {
 
 # Embed colour
 EMBED_COLOUR: Dict[WebsiteStatus, Color] = {
-    WebsiteStatus.UP: Color.green(),
-    WebsiteStatus.PARTIALLY_UP: Color.yellow(),
-    WebsiteStatus.DOWN: Color.red(),
-    WebsiteStatus.UNKNOWN_STATUS: Color.purple()
+    WebsiteStatus.UP: EMBED_COLOUR_UP,
+    WebsiteStatus.PARTIALLY_UP: EMBED_COLOUR_PARTIALLY_UP,
+    WebsiteStatus.DOWN: EMBED_COLOUR_DOWN,
+    WebsiteStatus.UNKNOWN_STATUS: EMBED_COLOUR_UNKNOWN_STATUS
 }
 
 # Table structure
@@ -504,3 +372,134 @@ MSG_ERROR_MESSAGE_INTENTS_STATUS_MISSING: str = ERROR_COLOUR + \
 MSG_ERROR_SOMETHING_DEFINITELY_FAILED: str = ERROR_COLOUR + \
     "Well, something is definitely wrong, because it failed on the second time to, abandoning."+RESET_COLOUR
 MSG_ERROR_NO_ACTIVE_CLIENT: str = ERROR_COLOUR+"No active client"+RESET_COLOUR
+
+__all__: List[str] = [
+    "CWD",
+    "DEFAULT_CASE_SENSITIVITY",
+    "RESPONSE_LOG_SIZE",
+    "MIN_DELAY_BETWEEN_CHECKS",
+    "MAX_ALLOWED_EMBEDDED_FIELDS",
+    "MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS",
+    "MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS",
+    "INLINE_FIELDS",
+    "HEADER_IMPERSONALISATION",
+    "QUERY_TIMEOUT",
+    "DATABASE_PATH",
+    "DATABASE_NAME",
+    "VERSION",
+    "AUTHOR",
+    "DELAY_BETWEEN_MESSAGE_SENDS_SECONDS",
+    "DISCORD_EMBEDING_MESSAGE",
+    "DISCORD_DEFAULT_MESSAGE_CONTENT",
+    "DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED",
+    "TOKEN_KEY",
+    "CONFIG_FILE_KEY",
+    "OUTPUT_MODE_KEY",
+    "ARTIFICIAL_DELAY_KEY",
+    # message colour,
+    "BOLD_TEXT",
+    "RESET_COLOUR",
+    "BACKGROUND_COLOUR",
+    "CRITICAL_COLOUR",
+    "ERROR_COLOUR",
+    "WARNING_COLOUR",
+    "INFO_COLOUR",
+    "DEBUG_COLOUR",
+    # Discord message newline,
+    "DISCORD_MESSAGE_NEWLINE",
+    "DISCORD_MESSAGE_BEGIN_FOOTER",
+    "DISCORD_MESSAGE_END_FOOTER",
+    # Output mode,
+    "OUTPUT_RAW",
+    "OUTPUT_MARKDOWN",
+    "OUTPUT_EMBED",
+    "OutputMode",
+    # Tracked timeframes,
+    "TIMEFRAME_DAY",
+    "TIMEFRAME_WEEK",
+    "TIMEFRAME_MONTH",
+    "TIMEFRAME_YEAR",
+    "TIMEFRAME_EMOJIS",
+    # Permissions message,
+    "DISCORD_MESSAGE_CONTENT_INTENT_ERROR",
+    "DISCORD_PERMISSIONS_EXPLANATION",
+    # website status,
+    "UP",
+    "DOWN",
+    "PARTIALLY_UP",
+    "UNKNOWN_STATUS",
+    "WebsiteStatus",
+    "WS",
+    "WEBSITE_STATUS",
+    # Status emoji's,
+    "UP_EMOJI",
+    "PARTIALLY_UP_EMOJI",
+    "DOWN_EMOJI",
+    "UNKNOWN_STATUS_EMOJI",
+    "STATUS_EMOJI",
+    "EMBED_COLOUR",
+    "EMBED_COLOUR_UP",
+    "EMBED_COLOUR_DOWN",
+    "EMBED_COLOUR_PARTIALLY_UP",
+    "EMBED_COLOUR_UNKNOWN_STATUS",
+    # Table structure,
+    "SQLITE_MESSAGES_MESSAGE_ID_NAME",
+    "SQLITE_DEAD_CHECKS_MESSAGE_ID_NAME",
+    "SQLITE_STATUS_MESSAGE_ID_NAME",
+    "SQLITE_STATUS_STATUS_NAME",
+    "SQLITE_STATUS_TIMESTAMP_NAME",
+    "SQLITE_TABLE_NAME_MESSAGES",
+    "SQLITE_TABLE_COLUMNS_MESSAGES",
+    "SQLITE_TABLE_NAME_DEAD_CHECKS",
+    "SQLITE_TABLE_COLUMNS_DEAD_CHECKS",
+    "SQLITE_TABLE_NAME_STATUS_HISTORY",
+    "SQLITE_TABLE_COLUMNS_STATUS_HISTORY",
+    "SQLITE_MESSAGE_TRIGGER_NAME",
+    "SQLITE_MESSAGE_TRIGGER",
+    "SQLITE_MESSAGE_HANDLER_TABLES",
+    # JSON structure nodes,
+    "JSON_KEY_TYPE",
+    "JSON_NAME",
+    "JSON_URL",
+    "JSON_CHANNEL",
+    "JSON_EXPECTED_CONTENT",
+    "JSON_CASE_SENSITIVE",
+    "JSON_EXPECTED_STATUS",
+    "JSON_DEADCHECKS",
+    "JSON_DEADCHECKS_KEYWORD",
+    "JSON_DEADCHECKS_RESPONSE",
+    "JSON_DEADCHECKS_CASE_SENSITIVE",
+    "JSONDataNotFound",
+    # Expected json structure,
+    "QueryStatus",
+    "DeadCheck",
+    "WebsiteNode",
+    "DiscordMessage",
+    # Runtime error,
+    "MSG_RUNTIME_CRITICAL_INIT_ERROR",
+    "MSG_CRITICAL_DISABLE_MESSAGE_CONTENT",
+    "MSG_CRITICAL_NO_ACTIVE_CLIENT_INSTANCE",
+    "MSG_CRITICAL_NO_SQL_HANDLER_INSTANCE",
+    "MSG_CRITICAL_NO_CONFIG_CONTENT",
+    "MSG_CRITICAL_SQL_INITIALISATION_ERROR",
+    "MSG_CRITICAL_MISSING_CONFIG_FILE",
+    "MSG_CRITICAL_CONFIG_FILE_NOT_FOUND",
+    "MSG_CRITICAL_CONFIG_FILE_LOAD_ERROR",
+    "MSG_CRITICAL_EMPTY_CONFIG_FILE",
+    "MSG_CRITICAL_BADLY_FORMATED_JSON",
+    # Message error,
+    "MSG_ERROR_UPDATE_ERROR",
+    "MSG_ERROR_DISCORD_CLIENT_NOT_INITIALISED",
+    "MSG_ERROR_DISCORD_CLIENT_INITIALISATION_FAILED",
+    "MSG_ERROR_WEBSITE_UPDATE_FAILED",
+    "MSG_ERROR_NO_MESSAGE_HANDLER_INSTANCE",
+    "MSG_ERROR_MESSAGE_SEND_FAILED",
+    "MSG_ERROR_MESSAGE_RETRIEVAL_FAILED",
+    "MSG_ERROR_NO_CHANNEL_OR_MESSAGE_ID",
+    "MSG_ERROR_CHANNEL_NOT_A_TEXTCHANNEL_OR_THREAD",
+    "MSG_ERROR_MESSAGE_MISSING_CHANNEL_ID",
+    "MSG_ERROR_CHANNEL_IS_NOT_A_TEXTCHANNEL_OR_THREAD",
+    "MSG_ERROR_MESSAGE_INTENTS_STATUS_MISSING",
+    "MSG_ERROR_SOMETHING_DEFINITELY_FAILED",
+    "MSG_ERROR_NO_ACTIVE_CLIENT"
+]
