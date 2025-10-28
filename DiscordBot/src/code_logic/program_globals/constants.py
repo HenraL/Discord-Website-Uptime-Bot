@@ -9,21 +9,13 @@ from typing import List, Tuple, Dict, Type, TypeAlias, Optional, Union
 
 from pathlib import Path
 
+import uuid
+
+from platform import system as ps
+
 from enum import Enum
 
 from discord import Color
-
-# message colour
-BOLD_TEXT: str = "\033[1m"
-RESET_COLOUR: str = "\033[0m"
-BACKGROUND_COLOUR: str = "\033[48;5;232m"  # black
-CRITICAL_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + "\033[38;5;9m"  # red
-ERROR_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + \
-    "\033[38;5;124m"  # darker shade of red
-WARNING_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;11m"  # yellow
-INFO_COLOUR: str = BACKGROUND_COLOUR + \
-    "\033[38;5;10m"  # lime geen (close enougth)
-DEBUG_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;14m"
 
 # Program status codes
 ERROR: int = 1
@@ -41,14 +33,104 @@ DEFAULT_CASE_SENSITIVITY: bool = False
 
 # This corresponds to the number of characters from the website request that are shown in the log, set to -1 for all.
 RESPONSE_LOG_SIZE: int = 500
+# This is the hard minimum allowed between each discord loop to avoid getting rate limited by the api
 MIN_DELAY_BETWEEN_CHECKS: float = 10
+# This is discord's hard value regarding the maximum amount of fields that can be added in an embedding
 MAX_ALLOWED_EMBEDDED_FIELDS: int = 25
+# This is discord's hard value regarding the maximum amount of characters allowed in the key field
 MAX_ALLOWED_KEY_CHARACTERS_IN_FIELDS: int = 255
+# This is discord's hard value regarding the maximum amount of characters allowed in the value field
 MAX_ALLOWED_VALUE_CHARACTERS_IN_FIELDS: int = 1024
+# This is discord's option for embeds in wether the field should be inlined or not.
 INLINE_FIELDS: bool = True
 
+# Website querying
+# This is the header that will be used if the request fails to try and impersonate a browser
+# This is a function in charge of faking the postman token
+
+
+def _generate_random_postman_token() -> str:
+    """Generate a random Postman-style token.
+
+    Returns a UUID4 string in the form "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    which matches the sample structure used elsewhere in the project.
+    """
+    token = str(uuid.uuid4())
+    return token
+
+
+# Bellow are header presets you can set in the HEADER_IMPERSONALISATION to see if this fixes the issue
+_FIREFOX_HEADER_MIN: Dict[str, str] = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Connection": "keep-alive",
+}
+
+_FIREFOX_HEADER_FULL: Dict[str, str] = {
+    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en,en-GB;q=0.8,en-US;q=0.5,en;q=0.3",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Connection": "keep-alive",
+    "Cookie": "doxygen_width=256; _ga=GA1.4.821560d8-97fc-e072-bcca-fb64489a8995; js=y",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Priority": "u=0, i"
+}
+
+_CHROME_HEADER_MIN: Dict[str, str] = {
+    "Connection": "keep-alive",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+}
+
+_CHROME_HEADER_FULL: Dict[str, str] = {
+    "Connection": "keep-alive",
+    "sec-ch-ua": "\"Chromium\";v=\"140\", \"Not=A?Brand\";v=\"24\", \"Google Chrome\";v=\"140\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": ps(),
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-User": "?1",
+    "Sec-Fetch-Dest": "document",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Accept-Language": "en-GB,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,de-AT;q=0.6,de;q=0.5,en-US;q=0.4"
+}
+
+_CURL_HEADER_FULL: Dict[str, str] = {
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*"
+}
+
+
+_POSTMAN_HEADER_MIN: Dict[str, str] = {
+    "User-Agent": "PostmanRuntime/7.49.0",
+    "Accept": "*/*"
+}
+
+
+_POSTMAN_HEADER_FULL: Dict[str, str] = {
+    "User-Agent": "PostmanRuntime/7.49.0",
+    "Accept": "*/*",
+    "Cache-Control": "no-cache",
+    "Postman-Token": _generate_random_postman_token(),
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive"
+}
+
+HEADER_IMPERSONALISATION: Dict[str, str] = _FIREFOX_HEADER_MIN
+
+# This is the maximum amount of time the request will wait before considering the connection dead if no response has been provided beforehand.
+QUERY_TIMEOUT: int = 5
 
 # Database info
+# This is where the sqlite database will be stored
 DATABASE_PATH: str = os.path.abspath(str(Path(CWD) / "data"))
 DATABASE_NAME: str = "database.sqlite3"
 
@@ -79,6 +161,18 @@ TOKEN_KEY: str = "TOKEN"
 CONFIG_FILE_KEY: str = "CONFIG_FILE"
 OUTPUT_MODE_KEY: str = "OUTPUT_MODE"
 ARTIFICIAL_DELAY_KEY: str = "ARTIFICIAL_DELAY"
+
+# message colour
+BOLD_TEXT: str = "\033[1m"
+RESET_COLOUR: str = "\033[0m"
+BACKGROUND_COLOUR: str = "\033[48;5;232m"  # black
+CRITICAL_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + "\033[38;5;9m"  # red
+ERROR_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + \
+    "\033[38;5;124m"  # darker shade of red
+WARNING_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;11m"  # yellow
+INFO_COLOUR: str = BACKGROUND_COLOUR + \
+    "\033[38;5;10m"  # lime geen (close enougth)
+DEBUG_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;14m"
 
 # Discord message newline
 DISCORD_MESSAGE_NEWLINE: str = "\n"
