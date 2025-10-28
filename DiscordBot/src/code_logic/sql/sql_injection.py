@@ -7,7 +7,7 @@ detected.
 """
 import base64
 import binascii
-from typing import Union, List, Any, Callable
+from typing import Union, List, Any, Callable, Sequence
 
 from display_tty import Disp
 from ..program_globals.helpers import initialise_logger
@@ -76,7 +76,7 @@ class SQLInjection:
         except (binascii.Error, ValueError):
             return False
 
-    def check_if_symbol_sql_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_symbol_sql_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Detect injection-like symbols in the input.
 
         This looks for characters or sequences commonly used in SQL
@@ -90,12 +90,15 @@ class SQLInjection:
             bool: True when an injection-like symbol is detected, False
                 otherwise.
         """
-        if isinstance(string, List):
+        if string is None:
+            return False
+        if isinstance(string, list):
             for i in string:
                 if self.check_if_symbol_sql_injection(i):
                     return True
             return False
-        if isinstance(string, str):
+        if isinstance(string, (str, int, float)):
+            string = str(string)
             if ";base64" in string:
                 return self._is_base64(string)
             for i in self.symbols:
@@ -111,7 +114,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_command_sql_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_command_sql_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Detect SQL keywords in the input.
 
         This checks for common SQL command keywords (SELECT, DROP, UNION,
@@ -127,12 +130,15 @@ class SQLInjection:
             msg = "(check_if_command_sql_injection) string = "
             msg += f"'{string}', type(string) = '{type(string)}'"
             self.disp.disp_print_debug(msg)
-        if isinstance(string, List):
+        if isinstance(string, list):
             for i in string:
                 if self.check_if_command_sql_injection(i):
                     return True
             return False
-        if isinstance(string, str):
+        if string is None:
+            return False
+        if isinstance(string, (str, int, float)):
+            string = str(string)
             for i in self.keywords:
                 if i in string:
                     self.disp.log_debug(
@@ -146,7 +152,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_logic_gate_sql_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_logic_gate_sql_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Detect logical operators (AND/OR/NOT) in the input.
 
         Useful to catch attempts that combine conditions to bypass simple
@@ -158,12 +164,15 @@ class SQLInjection:
         Returns:
             bool: True when a logic gate is present, False otherwise.
         """
-        if isinstance(string, List) is True:
+        if string is None:
+            return False
+        if isinstance(string, list):
             for i in string:
                 if self.check_if_logic_gate_sql_injection(i):
                     return True
             return False
-        if isinstance(string, str):
+        if isinstance(string, (str, int, float)):
+            string = str(string)
             for i in self.logic_gates:
                 if i in string:
                     self.disp.log_debug(
@@ -177,7 +186,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_symbol_and_command_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_symbol_and_command_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Combined check for symbol- or keyword-based injection patterns.
 
         Args:
@@ -192,7 +201,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_symbol_and_logic_gate_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_symbol_and_logic_gate_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Combined check for symbol- or logic-gate-based injection patterns.
 
         Args:
@@ -207,7 +216,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_command_and_logic_gate_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_command_and_logic_gate_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """Combined check for keyword- or logic-gate-based injection patterns.
 
         Args:
@@ -222,7 +231,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_sql_injection(self, string: Union[str, List[str]]) -> bool:
+    def check_if_sql_injection(self, string: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]]]) -> bool:
         """High-level SQL injection detection using all configured checks.
 
         This method runs a combined scan (symbols, keywords and logic gates)
@@ -237,7 +246,9 @@ class SQLInjection:
             bool: True when an injection-like pattern is detected, False
                 otherwise.
         """
-        if isinstance(string, List) is True:
+        if string is None:
+            return False
+        if isinstance(string, list):
             for i in string:
                 if self.check_if_sql_injection(i):
                     return True
@@ -254,7 +265,7 @@ class SQLInjection:
             return True
         return False
 
-    def check_if_injections_in_strings(self, array_of_strings: Union[str, List[str], List[List[str]]]) -> bool:
+    def check_if_injections_in_strings(self, array_of_strings: Union[Union[str, None, int, float], Sequence[Union[str, None, int, float]], Sequence[Sequence[Union[str, None, int, float]]]]) -> bool:
         """Scan an array (possibly nested) of strings for injection patterns.
 
         This convenience function accepts a string, a list of strings, or a
@@ -267,9 +278,11 @@ class SQLInjection:
         Returns:
             bool: True when an injection-like value is detected.
         """
-        if isinstance(array_of_strings, List) is True:
+        if array_of_strings is None:
+            return False
+        if isinstance(array_of_strings, list):
             for i in array_of_strings:
-                if isinstance(i, List) is True:
+                if isinstance(i, list):
                     if self.check_if_injections_in_strings(i) is True:
                         return True
                     continue
@@ -281,8 +294,8 @@ class SQLInjection:
                 if self.check_if_sql_injection(i):
                     return True
             return False
-        if isinstance(array_of_strings, str):
-            if self.check_if_sql_injection(array_of_strings):
+        if isinstance(array_of_strings, (str, int, float)):
+            if self.check_if_sql_injection(str(array_of_strings)):
                 return True
             return False
         err_message = "(check_if_injections_in_strings) The provided item is neither a List a table or a string"

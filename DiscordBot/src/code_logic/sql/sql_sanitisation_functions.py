@@ -3,7 +3,7 @@
 Small helpers used by the SQL boilerplate layer to escape column names,
 protect values and build safe SQL fragments for insertion into queries.
 """
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Sequence
 
 from display_tty import Disp
 from ..program_globals.helpers import initialise_logger
@@ -63,7 +63,7 @@ class SQLSanitiseFunctions:
                 result += char
         return result
 
-    def escape_risky_column_names(self, columns: Union[List[str], str]) -> Union[List[str], str]:
+    def escape_risky_column_names(self, columns: Union[Sequence[str], str]) -> Union[List[str], str]:
         """Escape column names that collide with risky SQL keywords.
 
         Args:
@@ -78,10 +78,23 @@ class SQLSanitiseFunctions:
         if isinstance(columns, str):
             data = [columns]
         else:
-            data = columns
+            # Ensure we have a mutable list for in-place edits
+            data = list(columns)
         for index, item in enumerate(data):
             if "=" in item:
                 key, value = item.split("=", maxsplit=1)
+                # Trim whitespace around key but preserve inner whitespace when
+                # the caller explicitly wrapped the value in quotes.
+                key = key.strip()
+                raw_value = value
+                stripped = raw_value.strip()
+                # Detect quoted value (single or double quotes)
+                if len(stripped) >= 2 and ((stripped[0] == "'" and stripped[-1] == "'") or (stripped[0] == '"' and stripped[-1] == '"')):
+                    # Preserve inner whitespace; remove outer quotes
+                    value = stripped[1:-1]
+                else:
+                    # Default: strip accidental surrounding whitespace
+                    value = stripped
                 self.disp.log_debug(f"key = {key}, value = {value}", title)
                 if key.lower() in self.risky_keywords:
                     self.disp.log_warning(
@@ -89,18 +102,18 @@ class SQLSanitiseFunctions:
                         "_escape_risky_column_names"
                     )
                     data[index] = f"`{key}`={value}"
-            elif item.lower() in self.risky_keywords:
+            elif item.strip().lower() in self.risky_keywords:
                 self.disp.log_warning(
                     f"Escaping risky column name '{item}'.",
                     "_escape_risky_column_names"
                 )
-                data[index] = f"`{item}`"
+                data[index] = f"`{item.strip()}`"
             else:
                 continue
         self.disp.log_debug("Escaped risky column names.", title)
         if isinstance(columns, str):
             return data[0]
-        return columns
+        return data
 
     def _protect_value(self, value: str) -> str:
         """Wrap a value for safe inclusion in SQL (quotes & escaping).
@@ -157,7 +170,7 @@ class SQLSanitiseFunctions:
         )
         return protected_value
 
-    def escape_risky_column_names_where_mode(self, columns: Union[List[str], str]) -> Union[List[str], str]:
+    def escape_risky_column_names_where_mode(self, columns: Union[Sequence[str], str]) -> Union[List[str], str]:
         """Escape risky column names when used in WHERE-like expressions.
 
         This function protects values and wraps risky identifiers in
@@ -177,11 +190,15 @@ class SQLSanitiseFunctions:
         if isinstance(columns, str):
             data = [columns]
         else:
-            data = columns
+            # Ensure we have a mutable list for in-place edits
+            data = list(columns)
 
         for index, item in enumerate(data):
             if "=" in item:
                 key, value = item.split("=", maxsplit=1)
+                # Trim whitespace around key/value to avoid stray spaces in SQL
+                key = key.strip()
+                value = value.strip()
                 self.disp.log_debug(f"key = {key}, value = {value}", title)
 
                 protected_value = self._protect_value(value)
@@ -193,12 +210,19 @@ class SQLSanitiseFunctions:
                 else:
                     data[index] = f"{key}={protected_value}"
 
-            elif item.lower() not in self.keyword_logic_gates and item.lower() in self.risky_keywords:
+            elif item.strip().lower() not in self.keyword_logic_gates and item.strip().lower() in self.risky_keywords:
                 self.disp.log_warning(
                     f"Escaping risky column name '{item}'.",
                     title
                 )
-                protected_value = self._protect_value(item)
+                # If the caller provided a quoted literal, preserve inner whitespace.
+                raw_item = item
+                stripped_item = raw_item.strip()
+                if len(stripped_item) >= 2 and ((stripped_item[0] == "'" and stripped_item[-1] == "'") or (stripped_item[0] == '"' and stripped_item[-1] == '"')):
+                    inner = stripped_item[1:-1]
+                    protected_value = self._protect_value(inner)
+                else:
+                    protected_value = self._protect_value(stripped_item)
                 data[index] = protected_value
 
         self.disp.log_debug("Escaped risky column names in where mode.", title)

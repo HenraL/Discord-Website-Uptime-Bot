@@ -366,7 +366,7 @@ class SQL:
             raise RuntimeError(self._runtime_error_string)
         return await self.sql_query_boilerplates.insert_trigger(trigger_name, trigger_sql)
 
-    async def insert_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], column: Union[List[str], None] = None) -> int:
+    async def insert_data_into_table(self, table: str, data: Union[List[List[Union[str, None, int, float]]], List[Union[str, None, int, float]]], column: Union[List[str], None] = None) -> int:
         """(Wrapper) Delegates to SQLQueryBoilerplates.insert_data_into_table
 
         Original docstring:
@@ -446,7 +446,7 @@ class SQL:
             raise RuntimeError(self._runtime_error_string)
         return await self.sql_query_boilerplates.get_table_size(table, column, where)
 
-    async def update_data_in_table(self, table: str, data: List[str], column: Union[List[str], str, None], where: Union[str, List[str]] = "") -> int:
+    async def update_data_in_table(self, table: str, data: List[Union[str, None, int, float]], column: Union[List[str], str, None], where: Union[str, List[str]] = "") -> int:
         """(Wrapper) Delegates to SQLQueryBoilerplates.update_data_in_table
 
         Original docstring:
@@ -467,7 +467,7 @@ class SQL:
             raise RuntimeError(self._runtime_error_string)
         return await self.sql_query_boilerplates.update_data_in_table(table, data, column, where)
 
-    async def insert_or_update_data_into_table(self, table: str, data: Union[List[List[str]], List[str]], columns: Union[List[str], None] = None) -> int:
+    async def insert_or_update_data_into_table(self, table: str, data: Union[List[List[Union[str, None, int, float]]], List[Union[str, None, int, float]]], columns: Union[List[str], None] = None) -> int:
         """(Wrapper) Delegates to SQLQueryBoilerplates.insert_or_update_data_into_table
 
         Original docstring:

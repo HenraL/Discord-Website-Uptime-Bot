@@ -4,7 +4,7 @@ Provides an async-friendly connection manager and helper utilities for
 sqlite using :mod:`aiosqlite`.
 """
 
-from typing import Union, Any, Optional
+from typing import Union, Any, Optional, List
 
 from pathlib import Path
 
@@ -177,7 +177,8 @@ class SQLManageConnections:
         title = "get_connection_async"
         # Fast path: existing connection
         if self.connection is not None:
-            self.disp.log_debug("Returning existing aiosqlite connection", title)
+            self.disp.log_debug(
+                "Returning existing aiosqlite connection", title)
             return self.connection
 
         # Otherwise initialise a new connection
@@ -314,7 +315,7 @@ class SQLManageConnections:
         msg += f"connection = {status_conn}"
         self.disp.log_debug(msg, title)
 
-    async def run_and_commit(self, query: str, cursor: Union[aiosqlite.Cursor, None] = None) -> int:
+    async def run_and_commit(self, query: str, values: List[Union[str, None, int, float]], cursor: Union[aiosqlite.Cursor, None] = None) -> int:
         """Execute a write-style SQL statement and commit the transaction.
 
         The method will either use the provided cursor or create one from the
@@ -356,8 +357,9 @@ class SQLManageConnections:
         try:
             # Serialize access to the shared connection/cursor
             async with self._lock:
-                self.disp.log_debug(f"Executing query: {query}.", title)
-                await internal_cursor.execute(query)
+                self.disp.log_debug(
+                    f"Executing query: {query} with values: {values}.", title)
+                await internal_cursor.execute(query, parameters=values)
                 self.disp.log_debug("Committing content.", title)
             # commit using the aiosqlite connection
             conn = getattr(internal_cursor, "_connection", None)
@@ -432,7 +434,7 @@ class SQLManageConnections:
                 )
             raise RuntimeError(msg) from e
 
-    async def run_and_fetch_all(self, query: str, cursor: Union[aiosqlite.Cursor, None] = None) -> Union[int, Any]:
+    async def run_and_fetch_all(self, query: str, values: List[Union[str, None, int, float]], cursor: Union[aiosqlite.Cursor, None] = None) -> Union[int, Any]:
         """Execute a SELECT-style query and return fetched rows.
 
         The method returns a list of rows (as produced by
@@ -465,8 +467,11 @@ class SQLManageConnections:
         try:
             # Serialize access to the shared connection/cursor
             async with self._lock:
-                self.disp.log_debug(f"Executing query: {query}.", title)
-                await internal_cursor.execute(query)
+                self.disp.log_debug(
+                    f"Executing query: {query}, values: {values}.",
+                    title
+                )
+                await internal_cursor.execute(query, parameters=values)
                 if internal_cursor is None or internal_cursor.description is None:
                     self.disp.log_error(
                         "Failed to gather data from the table, cursor is invalid.", title
@@ -558,7 +563,7 @@ class SQLManageConnections:
                 )
                 raise RuntimeError(msg) from e
 
-    async def run_editing_command(self, sql_query: str, table: str, action_type: str = "update") -> int:
+    async def run_editing_command(self, sql_query: str, values: List[Union[str, None, int, float]], table: str, action_type: str = "update") -> int:
         """Convenience wrapper to run a modifying SQL command and handle logging/return codes.
 
         Args:
@@ -571,7 +576,7 @@ class SQLManageConnections:
         """
         title = "_run_editing_command"
         try:
-            resp = await self.run_and_commit(query=sql_query)
+            resp = await self.run_and_commit(query=sql_query, values=values)
             if resp != self.success:
                 self.disp.log_error(
                     f"Failed to {action_type} data in '{table}'.", title
