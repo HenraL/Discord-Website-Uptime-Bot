@@ -37,21 +37,86 @@ cd Discord-Website-Uptime-Bot-HenraL
 
 ---
 
-## Environment Configuration
+## Environment configuration
 
-**You must create a `.env` file based on `sample.env` and place it at the root of the repository.**  
-If the `.env` file is missing or incomplete, the bot/container will not start.
+This project supports two operational modes: the original single-site script (v1) and the newer, more flexible v2 program that can monitor multiple sites from a JSON configuration file. Documentation below is retro-compatible — v1 variables still work and are documented first, followed by v2 options.
+
+Important: create a `.env` file based on `sample.env` and place it at the repository root. If the `.env` file is missing or incomplete, the bot/container will not start.
+
+### v1 (single-site, simple) — legacy/compatible
+
+The minimal env variables used by the v1 script are the same as before. If you only need to monitor one URL, keep using these:
 
 ```env
-# .env
+# .env (v1)
 TOKEN=your_discord_bot_token
 WEBSITE_URL=https://example.com
 CHANNEL_ID=123456789012345678
 EXPECTED_CONTENT=Some keyword or phrase
 ```
 
-- Do not remove `sample.env` (it is for reference and git history).
-- Do not commit your `.env` file; it is excluded by `.gitignore`.
+- Keep `sample.env` for reference in the repository.
+- Do not commit your real `.env` file (it's in `.gitignore`).
+
+### v2 (recommended for multiple sites / improved features)
+
+The v2 program (default when running the package entrypoint under `DiscordBot/src` code path) reads a JSON configuration file that defines one or more websites to monitor and offers additional environment options.
+
+Core environment variables for v2:
+
+- `TOKEN` (string, required)
+  - Your Discord bot token.
+- `CONFIG_FILE` (string, required for v2)
+  - Path to a JSON configuration file that describes the websites to monitor.
+  - This path may be absolute or relative to the project `CWD`. Example: `DiscordBot/config/websites.json` or `websites.sample.json`.
+- `OUTPUT_MODE` (string, optional)
+  - One of: `raw`, `markdown`, `embed` (case-insensitive).
+  - Controls how status messages are sent to Discord (plain text, formatted markdown, or rich embeds).
+  - If omitted, the program will try to infer/default the output mode.
+- `ARTIFICIAL_DELAY` (float, optional)
+  - Introduce an extra delay (seconds) between sends to reduce rate of updates. Helpful in testing or when you need slower update cadence.
+
+Example `.env` for v2 usage:
+
+```env
+# .env (v2)
+TOKEN=your_discord_bot_token
+CONFIG_FILE=DiscordBot/config/websites.json
+OUTPUT_MODE=embed
+ARTIFICIAL_DELAY=2.5
+```
+
+What the `CONFIG_FILE` should contain
+
+- The configuration file is JSON and follows the structure used in `DiscordBot/config/websites.sample.json` (and `websites.jsonc`/`websites.json` if present). Each entry describes a website node and includes keys such as `name`, `url`, `channel`, `expected_content`, `case_sensitive` and `dead_checks` entries. The code validates the file and will refuse to run if it is missing or malformed.
+
+Advanced runtime configuration (tweak in code)
+
+- v2 also exposes many fine-grained program constants that can be edited in code (or overridden by editing the module values) located in `DiscordBot/src/code_logic/program_globals/config.py`. These are not environment variables but are documented here so advanced users know where to tune behaviour. Examples:
+  - `DISCORD_EMBEDING_MESSAGE` — text sent alongside embeds (None / empty string / custom text).
+  - `DISCORD_DEFAULT_MESSAGE_CONTENT` — toggle requesting the privileged MESSAGE_CONTENT intent.
+  - `DISCORD_RESTART_CLIENT_WHEN_CONFIG_CHANGED` — whether to auto-restart the client when certain runtime configuration changes.
+  - `HEADER_IMPERSONALISATION` — HTTP header preset used when fetching sites (several browser-like presets available: Firefox/Chrome/Curl/Postman variants).
+  - `QUERY_TIMEOUT` — HTTP request timeout (seconds).
+  - `DATABASE_PATH` / `DATABASE_NAME` — location and filename for the SQLite DB used by v2.
+  - Logging, embed size and formatting constants such as `RESPONSE_LOG_SIZE`, `MIN_DELAY_BETWEEN_CHECKS`, `INLINE_FIELDS`, and embed colour/emoji constants.
+
+If you want to change these advanced values without editing the source, you can also fork/extend the code to read them from environment variables or a separate runtime config file — but by default they are Python constants inside the project.
+
+### For advanced users / developers
+
+If you're comfortable editing Python and want to modify deeper design choices or tune runtime behaviour beyond environment variables, take a look at the fully documented `config.py` module:
+
+- `DiscordBot/src/code_logic/program_globals/config.py`
+
+This file contains extensive inline documentation for each constant (defaults, types and purpose) and includes presets (for example HTTP header impersonation profiles) you can swap in. Editing these constants lets you change embed behaviour, timeouts, header impersonation, database paths and other core behaviour. Be careful: changes here affect runtime behaviour globally and may require restarting the bot.
+
+Compatibility notes
+
+- v2 is designed to be retro-compatible but more strict about which variables it uses at runtime:
+  - `TOKEN` is required and used by both v1 and v2.
+  - v1-style single-site variables (`WEBSITE_URL`, `CHANNEL_ID`, `EXPECTED_CONTENT`) are tolerated — they may be present in your `.env` file without causing errors — but v2 will ignore them when running in multi-site/config mode. They remain useful only if you run the legacy v1 script.
+  - For multi-site or more advanced usage, use `CONFIG_FILE` with the v2 JSON schema.
 
 ---
 
