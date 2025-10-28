@@ -1,29 +1,11 @@
-"""
-Discord Website Uptime Bot
+"""Discord Website Uptime Bot.
 
-This script implements a Discord bot that monitors the status of a specified website and posts periodic updates to a designated Discord channel. It checks both the website's availability and the presence of expected content on the page, updating a single message in the channel to reflect the current status.
+This script implements a Discord bot that monitors the status of a specified
+website and posts periodic updates to a designated Discord channel.
 
-Configuration:
-- Requires the following environment variables to be set:
-    - TOKEN: Discord bot token (string)
-    - WEBSITE_URL: The URL of the website to monitor (string)
-    - CHANNEL_ID: Discord channel ID for status updates (integer, as string in env)
-    - EXPECTED_CONTENT: Keyword or phrase expected in the website's HTML (string)
-- Uses a file (status_message_id.json) to persist the ID of the Discord message being updated. Format:
-    {
-        "message_id": 123456789012345678
-    }
-
-Main Features:
-- Checks the website every 60 seconds for availability and expected content.
-- Posts or edits a single status message in the specified Discord channel.
-- Handles missing/invalid configuration and Discord API errors gracefully.
-
-Usage:
-1. Set the required environment variables (or use a .env file).
-2. Run the script:
-   python DiscordWebsiteMonitor.py
-3. The bot will post and update a status message in the specified Discord channel every minute.
+Configuration and usage notes are described in the module-level README
+comments below and by the associated environment variables used by the
+script.
 """
 
 import os
@@ -41,6 +23,11 @@ DEBUG: bool = False
 
 
 def _print_debug(string: str) -> None:
+    """Print a debug line when DEBUG is enabled.
+
+    Args:
+        string (str): Message to print when debugging is active.
+    """
     if DEBUG:
         print(f"[DEBUG] {string}")
 
@@ -91,6 +78,11 @@ def _get_environement_variable(var_name: str) -> str:
 
 
 def _create_savefile_if_not_present(save_file: str) -> None:
+    """Ensure the parent folder and save file exist.
+
+    Args:
+        save_file (str): Path to the save file to create if absent.
+    """
     folders: str = str(pathlib.Path(save_file).parent)
     if os.path.isdir(folders) is False:
         print(f"Creating savefile folders ({folders})")
@@ -102,6 +94,14 @@ def _create_savefile_if_not_present(save_file: str) -> None:
 
 
 def _get_base_url(url: str) -> str:
+    """Return the scheme+host[:port] base part of a URL.
+
+    Args:
+        url (str): Full URL string.
+
+    Returns:
+        str: Base URL (scheme://host[:port]).
+    """
     decomposed_url_node: uurlib3.Url = uurlib3.parse_url(url)
     host: str = decomposed_url_node.host if decomposed_url_node.host else ""
     scheme: str = f"{decomposed_url_node.scheme}://" if decomposed_url_node.scheme else ""
@@ -144,19 +144,17 @@ client: discord.Client = discord.Client(intents=intents)
 
 
 def check_website_status_and_content(url: str, keyword: str) -> str:
-    """
-    Checks the website status and content more flexibly.
+    """Check website availability and whether expected content is present.
 
-    - Case-insensitive
-    - Ignores extra whitespace
-    - Allows for partial matches
+    The check is case-insensitive, ignores extra whitespace and allows for
+    partial matches.
 
     Args:
-        url (str): The url to query
-        keyword (str): The keyword to search for in the page
+        url (str): URL to query.
+        keyword (str): Keyword to search for in the page.
 
     Returns:
-        str: The string informing the status of the checked website.
+        str: Status string describing the result ("up_and_operational", "up_but_not_operational", or "down").
     """
     try:
         response = requests.get(url, timeout=5)  # Timeout after 5 seconds
@@ -267,10 +265,9 @@ async def monitor_website():
 
 @client.event
 async def on_ready():
-    """
-    Discord event handler called when the bot has successfully connected and is ready.
+    """Handle the Discord 'on_ready' event and start monitoring.
 
-    This function logs the bot's username and starts the website monitoring loop.
+    Starts the periodic website monitoring task after login.
     """
     print(f'Logged in as {client.user}')
     monitor_website.start()
