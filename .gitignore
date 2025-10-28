@@ -13,6 +13,7 @@ __pycache__/
 
 # JSON files containing sensitive or runtime data
 *.json
+!*.sample.json
 
 # Docker files (if not needed in the repository)
 .dockerignore
