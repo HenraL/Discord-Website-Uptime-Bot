@@ -619,6 +619,9 @@ class MessageHandler:
             self.disp.log_debug(
                 f"{CONST.DEBUG_COLOUR}response content: {response}...{CONST.RESET_COLOUR}"
             )
+            self.disp.log_info(
+                f"{CONST.INFO_COLOUR}{_url}: status code: {response.status_code}{CONST.RESET_COLOUR}"
+            )
             if response.status_code == _status:
                 # Normalize whitespace and lowercase
                 found: bool = self._check_if_keyword_in_content(
@@ -1006,9 +1009,6 @@ class MessageHandler:
                         f"Response[0][0] value: {response[0][0]}"
                     )
                     message_id = response[0][0]
-        else:
-            self.disp.log_debug("Invalid response for query.")
-            sleep(10)
         data: List[Union[str, None, int, float]] = [
             websites.name,
             message_id,

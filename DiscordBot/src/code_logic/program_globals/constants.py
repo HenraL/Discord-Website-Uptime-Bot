@@ -49,7 +49,7 @@ ERROR_COLOUR: str = BOLD_TEXT + BACKGROUND_COLOUR + \
     "\033[38;5;124m"  # darker shade of red
 WARNING_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;11m"  # yellow
 INFO_COLOUR: str = BACKGROUND_COLOUR + \
-    "\033[38;5;10m"  # lime geen (close enougth)
+    "\033[38;5;10m"  # lime green (close enough)
 DEBUG_COLOUR: str = BACKGROUND_COLOUR + "\033[38;5;14m"
 
 # Discord message newline
