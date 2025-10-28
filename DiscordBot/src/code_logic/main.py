@@ -87,7 +87,7 @@ class Main:
                     self.output_mode = CONST.OutputMode.RAW
                 elif _output_mode == CONST.OUTPUT_MARKDOWN.lower():
                     self.output_mode = CONST.OutputMode.MARKDOWN
-                elif self.output_mode == CONST.OUTPUT_EMBED.lower():
+                elif _output_mode == CONST.OUTPUT_EMBED.lower():
                     self.output_mode = CONST.OutputMode.EMBED
                 else:
                     raise ValueError(f"Unknown output mode: '{_output_mode}'")
