@@ -7,6 +7,13 @@ This module provides an entrypoint so the package can be executed with
 
 from functools import partial
 
+# Adding the current directory to path (for import safety)
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Identifying the usable program
 RUNNER = None
 
 
@@ -36,6 +43,7 @@ except ImportError as e:
             raise RuntimeError(err) from e2
 
 
+# If we are the main entrypoint, starting the program
 if __name__ == "__main__":
     if RUNNER:
         RUNNER()
