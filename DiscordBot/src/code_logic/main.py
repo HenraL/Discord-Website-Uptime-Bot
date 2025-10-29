@@ -418,6 +418,8 @@ def start_wrapper() -> None:
     """Function in charge or providing an easy way of starting the program.
     """
     DATA = HLP.check_input_args()
+    if isinstance(DATA, int):
+        sys.exit(DATA)
     DEBUG = DATA[0]
     DELAY = DATA[1]
     OUTPUT_MODE = DATA[2]

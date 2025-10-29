@@ -5,7 +5,7 @@ import sys
 import pathlib
 import asyncio
 import threading
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, Union
 from functools import partial
 import urllib3.util as uurlib3
 
@@ -189,7 +189,7 @@ def display_author() -> None:
     print(f"This program was written by {CONST.AUTHOR}")
 
 
-def check_input_args() -> Tuple[bool, float, Optional[CONST.OutputMode]]:
+def check_input_args() -> Union[int, Tuple[bool, float, Optional[CONST.OutputMode]]]:
     """Function to check the arguments that were provided by the user.
 
     Returns:
@@ -211,13 +211,13 @@ def check_input_args() -> Tuple[bool, float, Optional[CONST.OutputMode]]:
             DISP.log_debug("Debug is active")
         if "-h" in _node or "--h" in _node:
             display_help()
-            sys.exit(CONST.SUCCESS)
+            return CONST.SUCCESS
         if "-v" in _node or "--v" in _node:
             display_version()
-            sys.exit(CONST.SUCCESS)
+            return CONST.SUCCESS
         if "-a" in _node or "--a" in _node:
             display_author()
-            sys.exit(CONST.SUCCESS)
+            return CONST.SUCCESS
         if "-o" in _node or "--o" in _node or "-output" in _node or "--output" in _node:
             child = ""
             if "=" in _node:
