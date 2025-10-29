@@ -95,21 +95,36 @@ class Main:
                 self.disp.log_debug(
                     f"No output mode provided in the environement file. Error: {e}. Current value: '{self.output_mode}'"
                 )
+        try:
+            _artificial_delay_str: str = HLP.get_environement_variable(
+                CONST.ARTIFICIAL_DELAY_KEY
+            ).lower()
             try:
-                _artificial_delay_str: str = HLP.get_environement_variable(
-                    CONST.ARTIFICIAL_DELAY_KEY
-                ).lower()
-                try:
-                    self._artificial_delay = float(_artificial_delay_str)
-                except ValueError as e:
-                    self.disp.log_debug(
-                        f"The provided delay is not a number, error: {type(e).__name__}: {str(e)}"
-                    )
+                self._artificial_delay = float(_artificial_delay_str)
             except ValueError as e:
                 self.disp.log_debug(
-                    f"No artificial delay provided in the environement file. Error: {e}. Current value: '{self._artificial_delay}'"
+                    f"The provided delay is not a number, error: {type(e).__name__}: {str(e)}"
                 )
-
+        except ValueError as e:
+            self.disp.log_debug(
+                f"No artificial delay provided in the environement file. Error: {e}. Current value: '{self._artificial_delay}'"
+            )
+        try:
+            _default_debug_mode: bool = self.debug
+            _env_debug_mode: str = HLP.get_environement_variable(
+                CONST.DEBUG_TOKEN
+            )
+            _env_debug_bool: bool = _env_debug_mode.lower() in (
+                "1",
+                "true",
+                "yes"
+            )
+            self.debug = _default_debug_mode or _env_debug_bool
+            self.disp.update_disp_debug(self.debug)
+        except ValueError as e:
+            self.disp.log_debug(
+                "There was not debug variable in the environement file, skipping"
+            )
         return CONST.SUCCESS
 
     async def _initialise_sqlite(self) -> None:

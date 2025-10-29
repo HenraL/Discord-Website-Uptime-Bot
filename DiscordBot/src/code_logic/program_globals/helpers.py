@@ -71,7 +71,9 @@ def load_dotenv_if_present(cwd: str = "") -> None:
                         continue
                     # Match KEY=VALUE, allowing for spaces around =
                     match = re.match(
-                        r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$', line)
+                        r'^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$',
+                        line
+                    )
                     if match:
                         key, value = match.groups()
                         # Remove optional surrounding quotes
@@ -195,9 +197,19 @@ def check_input_args() -> Union[int, Tuple[bool, float, Optional[CONST.OutputMod
     Returns:
         bool: Wether debug is enabled or not.
     """
+    DISP.log_info("Loading environement prematurely (in case it is present)")
+    load_dotenv_if_present(CONST.CWD)
+    DISP.log_info("If present, the environement was loaded prematurely")
     _index: int = -1
     _delay: float = 60
-    _debug: bool = False
+    _debug: bool = os.environ.get(
+        CONST.DEBUG_TOKEN,
+        ""
+    ).lower() in (
+        "1",
+        "true",
+        "yes"
+    )
     _argc: int = len(sys.argv)
     _output_mode: Optional[CONST.OutputMode] = None
     while _index+1 < _argc:
