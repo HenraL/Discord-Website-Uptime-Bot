@@ -13,13 +13,15 @@ RUNNER = None
 try:
     import src
     RUNNER = src.start_wrapper
+    __all__ = ["src"]
 except ImportError as e:
     print(
         f"Failed to import version 2 of the program, trying another import mode, v2 import error: '{e}'"
     )
     try:
-        from .src import start_wrapper
-        RUNNER = start_wrapper
+        from . import src
+        RUNNER = src.start_wrapper
+        __all__ = ["src"]
     except ImportError as error:
         print(
             f"Failed to import version 2 of the program, defaulting to v1, v2 import error: '{error}'"
@@ -30,6 +32,7 @@ except ImportError as e:
                 DiscordWebsiteMonitor.client.run,
                 DiscordWebsiteMonitor.TOKEN
             )
+            __all__ = ["DiscordWebsiteMonitor"]
         except ImportError as e2:
             err: str = f"Could not find any versions of the program that could be started, v1 import error: {e2}"
             print(err)
