@@ -40,3 +40,8 @@ venv
 lenv
 menv
 wenv
+
+# no build artifacts
+dist/
+build/
+*.spec
