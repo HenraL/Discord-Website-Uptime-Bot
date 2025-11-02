@@ -45,3 +45,6 @@ wenv
 dist/
 build/
 *.spec
+
+# No file logs to be sent
+logs/
