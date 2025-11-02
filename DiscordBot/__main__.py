@@ -5,13 +5,49 @@ This module provides an entrypoint so the package can be executed with
 ``DiscordWebsiteMonitor`` module.
 """
 
+# for wrapping the v1 call
 from functools import partial
+
+# For reading variables from the environment
+import os
 
 # Adding the current directory to path (for import safety)
 import sys
 from pathlib import Path
 
+
+# Set up file logging if specific variables are set to true
+from rotary_logger import RotaryLogger, RL_CONST
 sys.path.insert(0, str(Path(__file__).parent))
+
+LOG_FOLDER_BASE_NAME: str = "logs"
+LOG_BOOL_CHECK = ("1", "true", "yes")
+LOG_TO_FILE = os.environ.get("LOG_TO_FILE", "").lower() in LOG_BOOL_CHECK
+LOG_MERGE: bool = os.environ.get("MERGE_LOG", "true").lower() in LOG_BOOL_CHECK
+LOG_FOLDER = str(
+    Path(__file__).parent / os.environ.get(
+        "LOG_FOLDER_NAME",
+        default=LOG_FOLDER_BASE_NAME
+    )
+)
+
+if LOG_TO_FILE:
+    RI: RotaryLogger = RotaryLogger(
+        log_to_file=LOG_TO_FILE,
+        override=False,
+        raw_log_folder=LOG_FOLDER,
+        merge_streams=LOG_MERGE,
+        prefix_out_stream=True,
+        prefix_err_stream=True
+    )
+    RI.start_logging(
+        log_folder=Path(LOG_FOLDER),
+        max_filesize=2*RL_CONST.GB1,
+        merged=LOG_MERGE,
+        log_to_file=LOG_TO_FILE
+    )
+    print("Rotary logger initialised")
+
 
 # Identifying the usable program
 RUNNER = None
