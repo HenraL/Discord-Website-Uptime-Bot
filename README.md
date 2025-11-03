@@ -195,6 +195,23 @@ Compatibility notes
 
 ---
 
+## WSGI shim (Passenger / cPanel)
+
+There is a small file, `wsgi_flucker.py`, included as a convenience for certain
+shared hosting environments (Passenger / cPanel) that only start Python processes
+via a WSGI entrypoint. That file is a very small WSGI "shim" which attempts to
+launch the bot from the WSGI process.
+
+Important: this is a brittle and hacky technique. WSGI servers and hosting
+panels are not designed to host long-running background workers (like an
+asyncio-based Discord bot). The shim may be killed or behave unpredictably
+depending on the hosting provider's lifecycle management. Prefer running the
+bot under Docker, a dedicated VM, `systemd`/supervisord, or another proper
+process manager for production usage. Use the WSGI shim only as a last resort
+and with the limitations in mind.
+
+---
+
 ## Gotchas
 
 Using the Embed mode (V2 version and above) but not seing your message, have you checked to make sure your agent has the following authorisations:

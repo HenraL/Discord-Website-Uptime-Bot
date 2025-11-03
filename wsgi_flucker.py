@@ -3,8 +3,15 @@ wsgi_flucker.py — Entry file for Discord Website Uptime Bot under O2Switch Pas
 
 This simply loads and runs DiscordBot/__main__.py once, in-process.
 No threads, no manual loops — The event loop in the program handles everything.
-This is a file to call only if one is trying to start the bot in a wsgi app,
-such app is typically found in CPanel python starter
+This file exists as a tiny WSGI "shim" intended for use on hosts (Passenger / cPanel)
+that only support starting Python code through a WSGI entrypoint.
+
+Note: this is a hacky / brittle technique — it only attempts to coax a long-running
+asyncio-based Discord bot into starting from a WSGI-style launcher. WSGI servers are
+not designed to host persistent background workers; this shim may be killed by the
+host, behave inconsistently, or conflict with the hosting provider's lifecycle.
+Prefer running the bot under Docker, systemd, a supervisor (supervisord), or a
+proper process manager. Only use this shim when you understand the limitations.
 """
 
 import os
