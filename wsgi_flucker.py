@@ -17,6 +17,13 @@ from typing import Any, Callable, Iterable
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+try:
+    from wsgi_lock import acquire_wsgi_lock
+except ImportError as e:
+    raise ImportError(
+        "Could not locate the lock handler module to prevent more than 1 process from starting."
+    ) from e
+
 
 def load_source(modname: str, filename: str) -> ModuleType:
     """Function in charge of locating the program's entrypoint
@@ -34,9 +41,10 @@ def load_source(modname: str, filename: str) -> ModuleType:
     loader = importlib.machinery.SourceFileLoader(modname, filename)
     spec = importlib.util.spec_from_file_location(
         modname, filename, loader=loader)
-    if spec is None:
+    if spec is None or hasattr(spec, "loader") is False:
         raise ImportError(
-            f"Could not load spec for module '{modname}' from '{filename}'")
+            f"Could not load spec for module '{modname}' from '{filename}'"
+        )
 
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
@@ -52,17 +60,21 @@ def application(
 ) -> Iterable[bytes]:
     """Passenger requires a callable named 'application'."""
     start_response('200 OK', [('Content-Type', 'text/plain')])
-    return [b"Discord Website Uptime Bot is running under Passenger.\n"]
+    return [b"Discord Website Uptime Bot WSGI entry alive.\n"]
 
 
-# ---- Startup sequence ----
+# ---- Startup ----
 try:
     print("[Startup] Importing DiscordBot/__main__.py ...", flush=True)
     bot_main = load_source('discordbot_main', 'DiscordBot/__main__.py')
 
     if hasattr(bot_main, "RUNNER") and callable(bot_main.RUNNER):
-        print("[Startup] Calling RUNNER() ...", flush=True)
-        bot_main.RUNNER()
+        print("[Startup] Attempting to acquire WSGI lock ...", flush=True)
+        if acquire_wsgi_lock():
+            print("[Startup] Lock acquired, starting bot RUNNER() ...", flush=True)
+            bot_main.RUNNER()
+        else:
+            print("[Startup] Another instance is running. Skipping RUNNER.", flush=True)
     else:
         print("[Error] RUNNER not found in DiscordBot/__main__.py", flush=True)
 
