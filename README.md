@@ -103,6 +103,33 @@ Advanced runtime configuration (tweak in code)
 
 If you want to change these advanced values without editing the source, you can also fork/extend the code to read them from environment variables or a separate runtime config file — but by default they are Python constants inside the project.
 
+#### Detailed structure of a json website block
+
+```jsonc
+[                                          // This is your opening bracket that will welcome the list of websites to monitor
+    {                                      // This is the opening curly bracket that will welcome the details for a website to be monitored
+        "name": "Google",                  // This is the name/description that will be displayed on the status response
+        "url": "https://google.com",       // This is the actual target of the website to monitor
+        "channel": 1234567891234567891     // This is the discorc channel on which to post the message
+        "expected_content": "<head>",      // This is the raw content to check for (it checks your string against the raw gathered response from the website.)
+        "expected_status": 200,            // This is the expected status code for success, 200 success, 404 not found, 500 internal server error, etc
+        "case_sensitive": false,           // This is wether to consider if the string must be compared in a case sensitive way or not (if false, both strings (expected content and the website response) are converted to lowercase before comparison)
+        "dead_checks": [                   // This is a section where you can specify the status to be displayed if a specific string is encountered in the response, the available statuses are: Up, Down, Partially Up, Unknown Status
+            {                              // This is the opening curly bracket for the first 'dead_check'
+                "keyword": "Server error", // This is the keyword to look for
+                "response": "PartiallyUp", // This is the response to override the default one with (if found)
+                "case_sensitive": true     // This is how you specify wether to convert everythin to lowercase beforehand or not
+            },                             // This is the closing curly bracket of the first 'dead_check', it is followed by a comma if you wish to add a nother one.
+            {                              // This is the opening curly bracket of the second 'dead_check'
+                "keyword": "maintenance",  // This is the keyword to look for
+                "response": "Down"         // This is the response override the default one with (if found)
+            }                              // This is the closing curly bracket of the second block, it is this time not followed by a comma because there are no other checks to perform
+        ]                                  // This is the closing bracket of the 'dead_check' list
+    }                                      // THis is the closing bracket of the first website node, if there were a website following it, it would have a comma
+]                                          // This is the closing bracket of the json file, it will never be followed by a comma.
+
+```
+
 ### For advanced users / developers
 
 If you're comfortable editing Python and want to modify deeper design choices or tune runtime behaviour beyond environment variables, take a look at the fully documented `config.py` module:
